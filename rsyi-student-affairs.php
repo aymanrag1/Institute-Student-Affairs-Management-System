@@ -100,6 +100,10 @@ function rsyi_sa_admin_assets( string $hook ): void {
     if ( strpos( $hook, 'rsyi' ) === false ) {
         return;
     }
+    // Enqueue WP Media library on settings page (needed for logo uploader)
+    if ( strpos( $hook, 'rsyi-settings' ) !== false ) {
+        wp_enqueue_media();
+    }
     wp_enqueue_style(
         'rsyi-sa-admin',
         RSYI_SA_PLUGIN_URL . 'assets/css/admin.css',

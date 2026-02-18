@@ -138,11 +138,11 @@ $cohorts = \RSYI_SA\Modules\Cohorts::get_all_cohorts();
         notices.empty();
 
         if (!cohort || cohort === '0') {
-            notices.html('<div class="notice notice-error"><p><?php esc_js( esc_html__( 'يرجى اختيار الفوج أولاً.', 'rsyi-sa' ) ); ?></p></div>');
+            notices.html('<div class="notice notice-error"><p><?php echo esc_js( __( 'يرجى اختيار الفوج أولاً.', 'rsyi-sa' ) ); ?></p></div>');
             return;
         }
         if (!file) {
-            notices.html('<div class="notice notice-error"><p><?php esc_js( esc_html__( 'يرجى اختيار ملف.', 'rsyi-sa' ) ); ?></p></div>');
+            notices.html('<div class="notice notice-error"><p><?php echo esc_js( __( 'يرجى اختيار ملف.', 'rsyi-sa' ) ); ?></p></div>');
             return;
         }
 
@@ -157,7 +157,7 @@ $cohorts = \RSYI_SA\Modules\Cohorts::get_all_cohorts();
 
         $('#rsyi-import-progress').show();
         $('#rsyi-progress-bar').css('width', '10%');
-        $('#rsyi-progress-text').text('<?php esc_js( esc_html__( 'جاري تحليل الملف…', 'rsyi-sa' ) ); ?>');
+        $('#rsyi-progress-text').text('<?php echo esc_js( __( 'جاري تحليل الملف…', 'rsyi-sa' ) ); ?>');
 
         $.ajax({
             url        : rsyiSA.ajaxUrl,
@@ -169,14 +169,14 @@ $cohorts = \RSYI_SA\Modules\Cohorts::get_all_cohorts();
                 if (!res.success) {
                     btn.prop('disabled', false);
                     $('#rsyi-import-progress').hide();
-                    notices.html('<div class="notice notice-error"><p>' + (res.data.message || '<?php esc_js( esc_html__( 'فشل تحليل الملف.', 'rsyi-sa' ) ); ?>') + '</p></div>');
+                    notices.html('<div class="notice notice-error"><p>' + (res.data.message || '<?php echo esc_js( __( 'فشل تحليل الملف.', 'rsyi-sa' ) ); ?>') + '</p></div>');
                     return;
                 }
                 var rows = res.data.rows;
                 if (!rows || rows.length === 0) {
                     btn.prop('disabled', false);
                     $('#rsyi-import-progress').hide();
-                    notices.html('<div class="notice notice-warning"><p><?php esc_js( esc_html__( 'الملف لا يحتوي على بيانات.', 'rsyi-sa' ) ); ?></p></div>');
+                    notices.html('<div class="notice notice-warning"><p><?php echo esc_js( __( 'الملف لا يحتوي على بيانات.', 'rsyi-sa' ) ); ?></p></div>');
                     return;
                 }
 
@@ -185,7 +185,7 @@ $cohorts = \RSYI_SA\Modules\Cohorts::get_all_cohorts();
             error: function () {
                 btn.prop('disabled', false);
                 $('#rsyi-import-progress').hide();
-                notices.html('<div class="notice notice-error"><p><?php esc_js( esc_html__( 'فشل الاتصال بالخادم.', 'rsyi-sa' ) ); ?></p></div>');
+                notices.html('<div class="notice notice-error"><p><?php echo esc_js( __( 'فشل الاتصال بالخادم.', 'rsyi-sa' ) ); ?></p></div>');
             }
         });
     });
@@ -207,11 +207,11 @@ $cohorts = \RSYI_SA\Modules\Cohorts::get_all_cohorts();
                 btn.prop('disabled', false);
                 var pct = Math.round((done / total) * 100);
                 $('#rsyi-progress-bar').css('width', '100%');
-                $('#rsyi-progress-text').text('<?php esc_js( esc_html__( 'اكتمل الاستيراد', 'rsyi-sa' ) ); ?>');
+                $('#rsyi-progress-text').text('<?php echo esc_js( __( 'اكتمل الاستيراد', 'rsyi-sa' ) ); ?>');
                 $('#rsyi-import-summary').html(
-                    '<strong>' + done + '</strong> <?php esc_js( esc_html__( 'صف إجمالي', 'rsyi-sa' ) ); ?> – ' +
-                    '<span style="color:#1a7a4a"><strong>' + success + '</strong> <?php esc_js( esc_html__( 'نجح', 'rsyi-sa' ) ); ?></span> – ' +
-                    '<span style="color:#c0392b"><strong>' + errors + '</strong> <?php esc_js( esc_html__( 'فشل', 'rsyi-sa' ) ); ?></span>'
+                    '<strong>' + done + '</strong> <?php echo esc_js( __( 'صف إجمالي', 'rsyi-sa' ) ); ?> – ' +
+                    '<span style="color:#1a7a4a"><strong>' + success + '</strong> <?php echo esc_js( __( 'نجح', 'rsyi-sa' ) ); ?></span> – ' +
+                    '<span style="color:#c0392b"><strong>' + errors + '</strong> <?php echo esc_js( __( 'فشل', 'rsyi-sa' ) ); ?></span>'
                 );
                 return;
             }
@@ -231,8 +231,8 @@ $cohorts = \RSYI_SA\Modules\Cohorts::get_all_cohorts();
                         var rowIndex = offset + r.row + 1;
                         if (r.success) { success++; } else { errors++; }
                         var statusHtml = r.success
-                            ? '<span class="rsyi-badge rsyi-status-active">✅ <?php esc_js( esc_html__( 'نجح', 'rsyi-sa' ) ); ?></span>'
-                            : '<span class="rsyi-badge rsyi-status-rejected">❌ <?php esc_js( esc_html__( 'فشل', 'rsyi-sa' ) ); ?></span>';
+                            ? '<span class="rsyi-badge rsyi-status-active">✅ <?php echo esc_js( __( 'نجح', 'rsyi-sa' ) ); ?></span>'
+                            : '<span class="rsyi-badge rsyi-status-rejected">❌ <?php echo esc_js( __( 'فشل', 'rsyi-sa' ) ); ?></span>';
                         $('#rsyi-results-body').append(
                             '<tr>' +
                             '<td>' + rowIndex + '</td>' +
@@ -246,7 +246,7 @@ $cohorts = \RSYI_SA\Modules\Cohorts::get_all_cohorts();
                 }
 
                 $('#rsyi-progress-bar').css('width', pct + '%');
-                $('#rsyi-progress-text').text(done + ' / ' + total + ' <?php esc_js( esc_html__( 'صف', 'rsyi-sa' ) ); ?>');
+                $('#rsyi-progress-text').text(done + ' / ' + total + ' <?php echo esc_js( __( 'صف', 'rsyi-sa' ) ); ?>');
 
                 sendBatch(offset + BATCH_SIZE);
             }).fail(function () {
@@ -256,7 +256,7 @@ $cohorts = \RSYI_SA\Modules\Cohorts::get_all_cohorts();
                     $('#rsyi-results-body').append(
                         '<tr><td>' + (offset + i + 1) + '</td><td>—</td><td>—</td>' +
                         '<td><span class="rsyi-badge rsyi-status-rejected">❌</span></td>' +
-                        '<td><?php esc_js( esc_html__( 'خطأ في الاتصال', 'rsyi-sa' ) ); ?></td></tr>'
+                        '<td><?php echo esc_js( __( 'خطأ في الاتصال', 'rsyi-sa' ) ); ?></td></tr>'
                     );
                 });
                 sendBatch(offset + BATCH_SIZE);

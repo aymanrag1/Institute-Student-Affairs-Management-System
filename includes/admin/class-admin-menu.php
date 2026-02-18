@@ -27,7 +27,8 @@ class Menu {
     public static function init(): void {
         add_action( 'admin_menu', [ __CLASS__, 'register_menus' ] );
         add_action( 'admin_init', [ __CLASS__, 'handle_form_submissions' ] );
-        add_action( 'wp_ajax_rsyi_save_settings', [ __CLASS__, 'ajax_save_settings' ] );
+        add_action( 'wp_ajax_rsyi_save_settings',           [ __CLASS__, 'ajax_save_settings' ] );
+        add_action( 'wp_ajax_rsyi_reseed_violation_types',  [ __CLASS__, 'ajax_reseed_violation_types' ] );
     }
 
     public static function register_menus(): void {
@@ -50,8 +51,8 @@ class Menu {
             [ 'rsyi-exit',         __( 'أذونات الخروج', 'rsyi-sa' ),   'rsyi_view_all_requests',    [ __CLASS__, 'page_exit_permits' ] ],
             [ 'rsyi-overnight',    __( 'أذونات المبيت', 'rsyi-sa' ),   'rsyi_view_all_requests',    [ __CLASS__, 'page_overnight_permits' ] ],
             [ 'rsyi-violations',   __( 'المخالفات', 'rsyi-sa' ),       'rsyi_view_all_violations',  [ __CLASS__, 'page_violations' ] ],
-            [ 'rsyi-expulsion',    __( 'قضايا الطرد', 'rsyi-sa' ),     'rsyi_manage_expulsion',     [ __CLASS__, 'page_expulsion' ] ],
-            [ 'rsyi-cohorts',      __( 'الأفواج والتحويلات', 'rsyi-sa' ), 'rsyi_manage_cohorts',   [ __CLASS__, 'page_cohorts' ] ],
+            [ 'rsyi-expulsion',    __( 'فصل طالب', 'rsyi-sa' ),         'rsyi_manage_expulsion',     [ __CLASS__, 'page_expulsion' ] ],
+            [ 'rsyi-cohorts',      __( 'الدفعة', 'rsyi-sa' ),            'rsyi_manage_cohorts',       [ __CLASS__, 'page_cohorts' ] ],
             [ 'rsyi-daily-report', __( 'التقرير اليومي PDF', 'rsyi-sa' ), 'rsyi_print_daily_report', [ __CLASS__, 'page_daily_report' ] ],
             [ 'rsyi-audit',        __( 'سجل الأحداث', 'rsyi-sa' ),     'rsyi_view_audit_log',       [ __CLASS__, 'page_audit_log' ] ],
             [ 'rsyi-settings',     __( 'الإعدادات', 'rsyi-sa' ),       'rsyi_manage_settings',      [ __CLASS__, 'page_settings' ] ],
@@ -183,11 +184,66 @@ class Menu {
         $institute_name = sanitize_text_field( wp_unslash( $_POST['rsyi_institute_name'] ?? '' ) );
 
         if ( empty( $institute_name ) ) {
-            wp_send_json_error( [ 'message' => __( 'الاسم لا يمكن أن يكون فارغاً.', 'rsyi-sa' ) ] );
+            wp_send_json_error( [ 'message' => __( 'اسم المعهد لا يمكن أن يكون فارغاً.', 'rsyi-sa' ) ] );
         }
 
         update_option( 'rsyi_institute_name', $institute_name );
 
+        $dean_name = sanitize_text_field( wp_unslash( $_POST['rsyi_dean_name'] ?? '' ) );
+        update_option( 'rsyi_dean_name', $dean_name );
+
+        $logo_url = esc_url_raw( wp_unslash( $_POST['rsyi_logo_url'] ?? '' ) );
+        update_option( 'rsyi_logo_url', $logo_url );
+
+        $logo_id = absint( $_POST['rsyi_logo_attachment_id'] ?? 0 );
+        update_option( 'rsyi_logo_attachment_id', $logo_id );
+
         wp_send_json_success( [ 'message' => __( 'تم حفظ الإعدادات بنجاح.', 'rsyi-sa' ) ] );
+    }
+
+    public static function ajax_reseed_violation_types(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_manage_settings' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'rsyi_violation_types';
+
+        $defaults = [
+            [ 'name_ar' => 'التأخر عن الحضور',         'name_en' => 'Late Attendance',         'default_points' => 3,  'max_points' => 10, 'requires_dean' => 0, 'is_dean_discretion' => 0 ],
+            [ 'name_ar' => 'الغياب بدون إذن',           'name_en' => 'Absent Without Leave',    'default_points' => 5,  'max_points' => 15, 'requires_dean' => 0, 'is_dean_discretion' => 0 ],
+            [ 'name_ar' => 'السلوك غير اللائق',         'name_en' => 'Inappropriate Behavior',  'default_points' => 10, 'max_points' => 20, 'requires_dean' => 0, 'is_dean_discretion' => 0 ],
+            [ 'name_ar' => 'مخالفة قواعد السكن',        'name_en' => 'Dorm Rules Violation',    'default_points' => 7,  'max_points' => 15, 'requires_dean' => 0, 'is_dean_discretion' => 0 ],
+            [ 'name_ar' => 'الاعتداء الجسدي',           'name_en' => 'Physical Assault',        'default_points' => 20, 'max_points' => 30, 'requires_dean' => 1, 'is_dean_discretion' => 0 ],
+            [ 'name_ar' => 'حيازة مواد مخدرة',          'name_en' => 'Possession of Narcotics', 'default_points' => 30, 'max_points' => 30, 'requires_dean' => 1, 'is_dean_discretion' => 1 ],
+            [ 'name_ar' => 'التحرش أو الإساءة الجنسية', 'name_en' => 'Sexual Harassment/Abuse', 'default_points' => 30, 'max_points' => 30, 'requires_dean' => 1, 'is_dean_discretion' => 1 ],
+            [ 'name_ar' => 'مخالفة تقديرية – العميد',   'name_en' => 'Dean Discretionary',      'default_points' => 5,  'max_points' => 30, 'requires_dean' => 1, 'is_dean_discretion' => 1 ],
+        ];
+
+        $added = 0;
+        foreach ( $defaults as $type ) {
+            // Only insert if this Arabic name doesn't already exist
+            $exists = $wpdb->get_var( $wpdb->prepare(
+                "SELECT id FROM {$table} WHERE name_ar = %s LIMIT 1",
+                $type['name_ar']
+            ) );
+            if ( ! $exists ) {
+                $wpdb->insert( $table, $type );
+                $added++;
+            }
+        }
+
+        $total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
+
+        wp_send_json_success( [
+            'message' => sprintf(
+                /* translators: 1: added count, 2: total count */
+                __( 'تمت الإضافة بنجاح. أُضيف %1$d نوع جديد. الإجمالي: %2$d.', 'rsyi-sa' ),
+                $added,
+                $total
+            ),
+        ] );
     }
 }

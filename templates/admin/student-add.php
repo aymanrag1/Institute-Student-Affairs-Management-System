@@ -156,7 +156,7 @@ $cohorts = \RSYI_SA\Modules\Cohorts::get_all_cohorts();
         // Basic client validation
         var cohort = $('#cohort_id').val();
         if (!cohort || cohort === '0') {
-            notices.html('<div class="notice notice-error"><p><?php esc_js( esc_html__( 'يرجى اختيار الفوج.', 'rsyi-sa' ) ); ?></p></div>');
+            notices.html('<div class="notice notice-error"><p><?php echo esc_js( __( 'يرجى اختيار الفوج.', 'rsyi-sa' ) ); ?></p></div>');
             return;
         }
 
@@ -174,24 +174,24 @@ $cohorts = \RSYI_SA\Modules\Cohorts::get_all_cohorts();
             cohort_id        : cohort
         };
 
-        btn.prop('disabled', true).text('<?php esc_js( esc_html__( 'جاري الإنشاء…', 'rsyi-sa' ) ); ?>');
+        btn.prop('disabled', true).text('<?php echo esc_js( __( 'جاري الإنشاء…', 'rsyi-sa' ) ); ?>');
 
         $.post(rsyiSA.ajaxUrl, data, function (res) {
-            btn.prop('disabled', false).text('<?php esc_js( esc_html__( 'إنشاء حساب الطالب', 'rsyi-sa' ) ); ?>');
+            btn.prop('disabled', false).text('<?php echo esc_js( __( 'إنشاء حساب الطالب', 'rsyi-sa' ) ); ?>');
             if (res.success) {
                 notices.html('<div class="notice notice-success"><p>' +
                     $('<div>').text(res.data.message).html() +
                     ' <a href="<?php echo esc_url( admin_url( 'admin.php?page=rsyi-students&action=view&id=' ) ); ?>' + res.data.profile_id + '">' +
-                    '<?php esc_js( esc_html__( 'عرض الملف', 'rsyi-sa' ) ); ?></a></p></div>');
+                    '<?php echo esc_js( __( 'عرض الملف', 'rsyi-sa' ) ); ?></a></p></div>');
                 $('#rsyi-add-student-form')[0].reset();
                 window.scrollTo(0, 0);
             } else {
-                var msgs = res.data.errors ? res.data.errors.join('<br>') : (res.data.message || '<?php esc_js( esc_html__( 'حدث خطأ.', 'rsyi-sa' ) ); ?>');
+                var msgs = res.data.errors ? res.data.errors.join('<br>') : (res.data.message || '<?php echo esc_js( __( 'حدث خطأ.', 'rsyi-sa' ) ); ?>');
                 notices.html('<div class="notice notice-error"><p>' + msgs + '</p></div>');
             }
         }).fail(function () {
-            btn.prop('disabled', false).text('<?php esc_js( esc_html__( 'إنشاء حساب الطالب', 'rsyi-sa' ) ); ?>');
-            notices.html('<div class="notice notice-error"><p><?php esc_js( esc_html__( 'فشل الاتصال بالخادم.', 'rsyi-sa' ) ); ?></p></div>');
+            btn.prop('disabled', false).text('<?php echo esc_js( __( 'إنشاء حساب الطالب', 'rsyi-sa' ) ); ?>');
+            notices.html('<div class="notice notice-error"><p><?php echo esc_js( __( 'فشل الاتصال بالخادم.', 'rsyi-sa' ) ); ?></p></div>');
         });
     });
 }(jQuery));
