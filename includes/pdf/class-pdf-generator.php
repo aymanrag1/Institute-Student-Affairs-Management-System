@@ -192,5 +192,3 @@ class PDF_Generator {
     }
 }
 
-// Register AJAX handlers
-\RSYI_SA\PDF_Generator::init_ajax();

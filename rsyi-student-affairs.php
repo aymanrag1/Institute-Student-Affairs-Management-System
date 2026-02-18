@@ -28,33 +28,39 @@ define( 'RSYI_SA_UPLOAD_DIR',  WP_CONTENT_DIR . '/uploads/rsyi-docs' );
 define( 'RSYI_SA_UPLOAD_URL',  WP_CONTENT_URL  . '/uploads/rsyi-docs' );
 
 // ─── Autoloader ───────────────────────────────────────────────────────────────
+// NOTE: We use substr() to strip the 'RSYI_SA\' prefix and keep the remaining
+// namespace path with its original backslashes so map keys match exactly.
 spl_autoload_register( function ( string $class ): void {
-    if ( strpos( $class, 'RSYI_SA\\' ) !== 0 ) {
+    // Only handle classes in our namespace
+    $prefix = 'RSYI_SA\\';
+    if ( strpos( $class, $prefix ) !== 0 ) {
         return;
     }
-    $relative = str_replace( [ 'RSYI_SA\\', '\\' ], [ '', DIRECTORY_SEPARATOR ], $class );
-    $map      = [
-        'DB_Installer'       => 'includes/class-db-installer.php',
-        'Roles'              => 'includes/class-roles.php',
-        'Audit_Log'          => 'includes/class-audit-log.php',
-        'Email_Notifications'=> 'includes/class-email-notifications.php',
-        'Secure_Download'    => 'includes/class-secure-download.php',
-        'PDF_Generator'      => 'includes/pdf/class-pdf-generator.php',
-        'Modules\\Accounts'  => 'includes/modules/class-accounts.php',
-        'Modules\\Documents' => 'includes/modules/class-documents.php',
-        'Modules\\Requests'  => 'includes/modules/class-requests.php',
-        'Modules\\Behavior'  => 'includes/modules/class-behavior.php',
-        'Modules\\Cohorts'   => 'includes/modules/class-cohorts.php',
-        'Admin\\Menu'        => 'includes/admin/class-admin-menu.php',
-        'Admin\\Students_List_Table'   => 'includes/admin/class-students-list-table.php',
-        'Admin\\Documents_List_Table'  => 'includes/admin/class-documents-list-table.php',
-        'Admin\\Requests_List_Table'   => 'includes/admin/class-requests-list-table.php',
-        'Admin\\Violations_List_Table' => 'includes/admin/class-violations-list-table.php',
-        'Admin\\Cohorts_List_Table'    => 'includes/admin/class-cohorts-list-table.php',
-        'Portal\\Shortcodes' => 'includes/portal/class-portal-shortcodes.php',
+
+    // Strip prefix; preserve sub-namespace backslashes for map lookup
+    $relative = substr( $class, strlen( $prefix ) );
+
+    $map = [
+        'DB_Installer'               => 'includes/class-db-installer.php',
+        'Roles'                      => 'includes/class-roles.php',
+        'Audit_Log'                  => 'includes/class-audit-log.php',
+        'Email_Notifications'        => 'includes/class-email-notifications.php',
+        'Secure_Download'            => 'includes/class-secure-download.php',
+        'PDF_Generator'              => 'includes/pdf/class-pdf-generator.php',
+        'Modules\\Accounts'          => 'includes/modules/class-accounts.php',
+        'Modules\\Documents'         => 'includes/modules/class-documents.php',
+        'Modules\\Requests'          => 'includes/modules/class-requests.php',
+        'Modules\\Behavior'          => 'includes/modules/class-behavior.php',
+        'Modules\\Cohorts'           => 'includes/modules/class-cohorts.php',
+        'Admin\\Menu'                => 'includes/admin/class-admin-menu.php',
+        'Portal\\Shortcodes'         => 'includes/portal/class-portal-shortcodes.php',
     ];
+
     if ( isset( $map[ $relative ] ) ) {
-        require_once RSYI_SA_PLUGIN_DIR . $map[ $relative ];
+        $file = RSYI_SA_PLUGIN_DIR . $map[ $relative ];
+        if ( file_exists( $file ) ) {
+            require_once $file;
+        }
     }
 } );
 
@@ -76,6 +82,9 @@ function rsyi_sa_init(): void {
     RSYI_SA\Modules\Requests::init();
     RSYI_SA\Modules\Behavior::init();
     RSYI_SA\Modules\Cohorts::init();
+
+    // PDF generator AJAX (registered here so the class is always loaded)
+    RSYI_SA\PDF_Generator::init_ajax();
 
     if ( is_admin() ) {
         RSYI_SA\Admin\Menu::init();

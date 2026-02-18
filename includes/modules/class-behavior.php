@@ -357,7 +357,7 @@ class Behavior {
             $wpdb->prefix . 'rsyi_behavior_warnings',
             [
                 'acknowledged_at' => current_time( 'mysql', true ),
-                'ack_ip'          => \RSYI_SA\Audit_Log::class::get_client_ip ?? self::get_ip(),
+                'ack_ip'          => self::get_ip(),
             ],
             [ 'id' => $warning_id ],
             [ '%s', '%s' ], [ '%d' ]
