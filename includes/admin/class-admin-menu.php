@@ -29,6 +29,7 @@ class Menu {
         add_action( 'admin_init', [ __CLASS__, 'handle_form_submissions' ] );
         add_action( 'wp_ajax_rsyi_save_settings',           [ __CLASS__, 'ajax_save_settings' ] );
         add_action( 'wp_ajax_rsyi_reseed_violation_types',  [ __CLASS__, 'ajax_reseed_violation_types' ] );
+        add_action( 'wp_ajax_rsyi_force_update_check',      [ __CLASS__, 'ajax_force_update_check' ] );
     }
 
     public static function register_menus(): void {
@@ -198,7 +199,54 @@ class Menu {
         $logo_id = absint( $_POST['rsyi_logo_attachment_id'] ?? 0 );
         update_option( 'rsyi_logo_attachment_id', $logo_id );
 
+        // GitHub token: '__KEEP__' means "don't change the stored value"
+        $github_token = wp_unslash( $_POST['rsyi_github_token'] ?? '' );
+        if ( $github_token !== '__KEEP__' ) {
+            update_option( 'rsyi_github_token', sanitize_text_field( $github_token ) );
+            // Clear cached release data so it re-fetches with the new token
+            delete_transient( 'rsyi_sa_update_cache' );
+        }
+
         wp_send_json_success( [ 'message' => __( 'تم حفظ الإعدادات بنجاح.', 'rsyi-sa' ) ] );
+    }
+
+    public static function ajax_force_update_check(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_manage_settings' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        // Clear the cache so Updater::get_latest_release() re-fetches from GitHub
+        delete_transient( 'rsyi_sa_update_cache' );
+
+        // Force WordPress to re-check all plugin updates
+        delete_site_transient( 'update_plugins' );
+        wp_update_plugins();
+
+        $cached = get_transient( 'rsyi_sa_update_cache' );
+        if ( ! $cached ) {
+            wp_send_json_error( [ 'message' => __( 'تعذّر الاتصال بـ GitHub API. تأكد من أن المستودع عام أو أدخل Token صحيح.', 'rsyi-sa' ) ] );
+        }
+
+        $latest_version = ltrim( $cached->tag_name ?? '', 'v' );
+        if ( version_compare( RSYI_SA_VERSION, $latest_version, '<' ) ) {
+            wp_send_json_success( [
+                'message' => sprintf(
+                    /* translators: 1: latest version */
+                    __( 'يوجد تحديث جديد: الإصدار %s. توجه إلى صفحة الإضافات للتحديث.', 'rsyi-sa' ),
+                    $latest_version
+                ),
+            ] );
+        } else {
+            wp_send_json_success( [
+                'message' => sprintf(
+                    /* translators: 1: current version */
+                    __( 'النظام محدَّث. الإصدار الحالي %s هو الأحدث.', 'rsyi-sa' ),
+                    RSYI_SA_VERSION
+                ),
+            ] );
+        }
     }
 
     public static function ajax_reseed_violation_types(): void {

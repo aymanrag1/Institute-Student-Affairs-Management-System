@@ -1,0 +1,87 @@
+name: Build & Publish Release
+
+# Triggers when you push a version tag, e.g.: git tag v1.0.1 && git push origin v1.0.1
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  release:
+    name: Create GitHub Release with plugin zip
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to create the GitHub Release
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. Extract version from tag ───────────────────────────────────────
+      - name: Get version
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"       >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # ── 3. Verify version in plugin file matches the tag ─────────────────
+      - name: Verify plugin version
+        run: |
+          FILE_VERSION=$(grep "define( 'RSYI_SA_VERSION'" rsyi-student-affairs.php \
+            | grep -oP "'\K[^']+")
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          echo "Plugin file version : $FILE_VERSION"
+          echo "Git tag version     : $TAG_VERSION"
+          if [ "$FILE_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Version mismatch! Update RSYI_SA_VERSION in rsyi-student-affairs.php to $TAG_VERSION"
+            exit 1
+          fi
+
+      # ── 4. Build the plugin zip ───────────────────────────────────────────
+      - name: Build zip
+        run: |
+          PLUGIN_SLUG="rsyi-student-affairs"
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP_NAME="${PLUGIN_SLUG}-v${VERSION}.zip"
+
+          # Copy plugin files into a correctly-named subfolder
+          mkdir -p "build/${PLUGIN_SLUG}"
+          rsync -av \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='build' \
+            --exclude='*.DS_Store' \
+            --exclude='node_modules' \
+            --exclude='*.log' \
+            . "build/${PLUGIN_SLUG}/"
+
+          # Create the zip with the folder at the root level
+          cd build
+          zip -r "../${ZIP_NAME}" "${PLUGIN_SLUG}/"
+          cd ..
+
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+          echo "Built: $ZIP_NAME"
+          ls -lh "$ZIP_NAME"
+
+      # ── 5. Publish the GitHub Release ─────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "RSYI Student Affairs v${{ steps.version.outputs.version }}"
+          body: |
+            ## الإصدار ${{ steps.version.outputs.version }}
+
+            ### كيفية التحديث
+            - **تلقائياً**: إذا كان البلاجن مثبتاً على WordPress، ستظهر رسالة "تحديث متاح" في صفحة الإضافات. اضغط "تحديث الآن".
+            - **يدوياً**: حمّل الملف `${{ env.ZIP_NAME }}` ورفعه من لوحة التحكم → الإضافات → إضافة جديد → رفع إضافة.
+
+            ---
+            *تم الإنشاء تلقائياً بواسطة GitHub Actions.*
+          draft: false
+          prerelease: false
+          files: ${{ env.ZIP_NAME }}

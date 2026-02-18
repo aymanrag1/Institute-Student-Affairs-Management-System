@@ -46,6 +46,7 @@ spl_autoload_register( function ( string $class ): void {
         'Audit_Log'                  => 'includes/class-audit-log.php',
         'Email_Notifications'        => 'includes/class-email-notifications.php',
         'Secure_Download'            => 'includes/class-secure-download.php',
+        'Updater'                    => 'includes/class-updater.php',
         'PDF_Generator'              => 'includes/pdf/class-pdf-generator.php',
         'Modules\\Accounts'          => 'includes/modules/class-accounts.php',
         'Modules\\Documents'         => 'includes/modules/class-documents.php',
@@ -82,6 +83,9 @@ function rsyi_sa_init(): void {
     RSYI_SA\Modules\Requests::init();
     RSYI_SA\Modules\Behavior::init();
     RSYI_SA\Modules\Cohorts::init();
+
+    // GitHub update checker (runs on both front and back end checks)
+    RSYI_SA\Updater::init();
 
     // PDF generator AJAX (registered here so the class is always loaded)
     RSYI_SA\PDF_Generator::init_ajax();

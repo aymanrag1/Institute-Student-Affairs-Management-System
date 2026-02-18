@@ -13,6 +13,7 @@ $institute_name = get_option( 'rsyi_institute_name', 'معهد البحر الأ
 $dean_name      = get_option( 'rsyi_dean_name', '' );
 $logo_url       = get_option( 'rsyi_logo_url', '' );
 $logo_id        = (int) get_option( 'rsyi_logo_attachment_id', 0 );
+$github_token   = get_option( 'rsyi_github_token', '' );
 
 global $wpdb;
 $violation_types_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}rsyi_violation_types" );
@@ -105,7 +106,68 @@ $violation_types_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->pre
     </p>
 </div>
 
-<!-- ══ Section 3: System Integration ════════════════════════════════════ -->
+<!-- ══ Section 3: GitHub Auto-Update ══════════════════════════════════════ -->
+<div class="rsyi-card" style="max-width:700px;margin-bottom:24px;">
+    <h2 style="margin-top:0;">
+        🔄 <?php esc_html_e( 'التحديث التلقائي عبر GitHub', 'rsyi-sa' ); ?>
+    </h2>
+    <p class="description" style="margin-bottom:16px;">
+        <?php esc_html_e( 'عند نشر إصدار جديد (Release) على GitHub، سيظهر تنبيه التحديث تلقائياً في صفحة الإضافات. اضغط "تحديث الآن" وسيُثبَّت البلاجن الجديد بشكل كامل.', 'rsyi-sa' ); ?>
+    </p>
+    <table class="form-table" role="presentation">
+        <tr>
+            <th><?php esc_html_e( 'المستودع', 'rsyi-sa' ); ?></th>
+            <td>
+                <code style="font-size:13px;">aymanrag1/Institute-Student-Affairs-Management-System</code>
+                <p class="description"><?php esc_html_e( 'يجب أن يكون المستودع عاماً (Public)، أو أدخل Personal Access Token أدناه للمستودعات الخاصة.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+        <tr>
+            <th><label for="rsyi_github_token"><?php esc_html_e( 'GitHub Token (اختياري)', 'rsyi-sa' ); ?></label></th>
+            <td>
+                <input type="password" id="rsyi_github_token" class="regular-text"
+                       value="<?php echo esc_attr( $github_token ? str_repeat( '•', 20 ) : '' ); ?>"
+                       placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                       autocomplete="new-password">
+                <p class="description">
+                    <?php esc_html_e( 'مطلوب فقط للمستودعات الخاصة. أنشئ Token من: GitHub → Settings → Developer settings → Personal access tokens. الصلاحية المطلوبة: repo (read).', 'rsyi-sa' ); ?>
+                </p>
+            </td>
+        </tr>
+        <tr>
+            <th><?php esc_html_e( 'حالة الاتصال', 'rsyi-sa' ); ?></th>
+            <td>
+                <?php
+                $cached = get_transient( 'rsyi_sa_update_cache' );
+                if ( $cached === false ) :
+                ?>
+                <span style="color:#888;"><?php esc_html_e( 'لم يتم التحقق بعد. سيتحقق WordPress تلقائياً خلال 12 ساعة.', 'rsyi-sa' ); ?></span>
+                <?php elseif ( ! $cached ) : ?>
+                <span style="color:#c0392b;">&#10008; <?php esc_html_e( 'فشل الاتصال بـ GitHub API. تأكد من أن المستودع عام أو أدخل Token صحيح.', 'rsyi-sa' ); ?></span>
+                <?php else : ?>
+                <span style="color:#1a7a4a;">&#10004; <?php printf(
+                    esc_html__( 'متصل. آخر إصدار على GitHub: %s', 'rsyi-sa' ),
+                    '<strong>' . esc_html( $cached->tag_name ?? 'غير معروف' ) . '</strong>'
+                ); ?></span>
+                <?php endif; ?>
+                <br>
+                <button type="button" id="rsyi-check-update" class="button" style="margin-top:8px;">
+                    <?php esc_html_e( 'التحقق من التحديثات الآن', 'rsyi-sa' ); ?>
+                </button>
+                <span id="rsyi-check-update-status" style="margin-right:8px;display:none;"></span>
+            </td>
+        </tr>
+    </table>
+
+    <p class="submit" style="border-top:1px solid #eee;padding-top:14px;margin-top:4px;">
+        <button type="button" id="rsyi-save-github" class="button button-primary">
+            <?php esc_html_e( 'حفظ إعدادات GitHub', 'rsyi-sa' ); ?>
+        </button>
+        <span id="rsyi-github-status" style="margin-right:12px;display:none;font-weight:600;"></span>
+    </p>
+</div>
+
+<!-- ══ Section 4: System Integration ════════════════════════════════════ -->
 <div class="rsyi-card" style="max-width:700px;">
     <h2 style="margin-top:0;"><?php esc_html_e( 'ربط الأنظمة', 'rsyi-sa' ); ?></h2>
     <p class="description">
@@ -193,6 +255,61 @@ $violation_types_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->pre
         }).fail(function () {
             btn.prop('disabled', false);
             status.text('❌ <?php echo esc_js( __( 'فشل الاتصال.', 'rsyi-sa' ) ); ?>').css('color', '#c0392b').show();
+        });
+    });
+
+    // ── Save GitHub settings ───────────────────────────────────────────────
+    $('#rsyi-save-github').on('click', function () {
+        var btn    = $(this).prop('disabled', true);
+        var status = $('#rsyi-github-status');
+        status.hide();
+
+        var tokenVal = $('#rsyi_github_token').val();
+        // If the field still shows the masked placeholder, send empty to skip update
+        var tokenToSend = /^•+$/.test(tokenVal) ? '__KEEP__' : tokenVal;
+
+        $.post(rsyiSA.ajaxUrl, {
+            action           : 'rsyi_save_settings',
+            _nonce           : rsyiSA.nonce,
+            rsyi_institute_name : $('#rsyi_institute_name').val().trim() || '<?php echo esc_js( $institute_name ); ?>',
+            rsyi_dean_name   : $('#rsyi_dean_name').val().trim(),
+            rsyi_logo_attachment_id: $('#rsyi_logo_attachment_id').val(),
+            rsyi_logo_url    : $('#rsyi_logo_url').val(),
+            rsyi_github_token: tokenToSend
+        }, function (res) {
+            btn.prop('disabled', false);
+            if (res.success) {
+                status.text('✅ ' + res.data.message).css('color', '#1a7a4a').show();
+                setTimeout(function () { status.fadeOut(); }, 3000);
+            } else {
+                status.text('❌ ' + (res.data.message || '<?php echo esc_js( __( 'خطأ.', 'rsyi-sa' ) ); ?>')).css('color', '#c0392b').show();
+            }
+        }).fail(function () {
+            btn.prop('disabled', false);
+            status.text('❌ <?php echo esc_js( __( 'فشل الاتصال.', 'rsyi-sa' ) ); ?>').css('color', '#c0392b').show();
+        });
+    });
+
+    // ── Force update check ─────────────────────────────────────────────────
+    $('#rsyi-check-update').on('click', function () {
+        var btn  = $(this).prop('disabled', true);
+        var stat = $('#rsyi-check-update-status');
+        stat.text('<?php echo esc_js( __( 'جاري التحقق…', 'rsyi-sa' ) ); ?>').css('color', '#666').show();
+
+        $.post(rsyiSA.ajaxUrl, {
+            action: 'rsyi_force_update_check',
+            _nonce: rsyiSA.nonce
+        }, function (res) {
+            btn.prop('disabled', false);
+            if (res.success) {
+                stat.text('✅ ' + res.data.message).css('color', '#1a7a4a');
+                setTimeout(function () { location.reload(); }, 1500);
+            } else {
+                stat.text('❌ ' + (res.data.message || '<?php echo esc_js( __( 'خطأ.', 'rsyi-sa' ) ); ?>')).css('color', '#c0392b');
+            }
+        }).fail(function () {
+            btn.prop('disabled', false);
+            stat.text('❌ <?php echo esc_js( __( 'فشل الاتصال.', 'rsyi-sa' ) ); ?>').css('color', '#c0392b');
         });
     });
 
