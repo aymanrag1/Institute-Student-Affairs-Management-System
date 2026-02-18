@@ -31,6 +31,9 @@ $status_labels = [
 <a href="<?php echo esc_url( admin_url( 'admin.php?page=rsyi-students&action=add' ) ); ?>" class="page-title-action">
     <?php esc_html_e( '+ إضافة طالب', 'rsyi-sa' ); ?>
 </a>
+<a href="<?php echo esc_url( admin_url( 'admin.php?page=rsyi-students&action=import' ) ); ?>" class="page-title-action">
+    📥 <?php esc_html_e( 'استيراد من Excel', 'rsyi-sa' ); ?>
+</a>
 <hr class="wp-header-end">
 
 <form method="get" class="rsyi-filter-form">

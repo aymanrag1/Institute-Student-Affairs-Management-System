@@ -27,6 +27,7 @@ class Menu {
     public static function init(): void {
         add_action( 'admin_menu', [ __CLASS__, 'register_menus' ] );
         add_action( 'admin_init', [ __CLASS__, 'handle_form_submissions' ] );
+        add_action( 'wp_ajax_rsyi_save_settings', [ __CLASS__, 'ajax_save_settings' ] );
     }
 
     public static function register_menus(): void {
@@ -82,6 +83,10 @@ class Menu {
         }
         if ( isset( $_GET['action'] ) && $_GET['action'] === 'add' ) {
             self::render( 'student-add' );
+            return;
+        }
+        if ( isset( $_GET['action'] ) && $_GET['action'] === 'import' ) {
+            self::render( 'students-import' );
             return;
         }
         self::render( 'students-list' );
@@ -164,5 +169,25 @@ class Menu {
         if ( ! isset( $_POST['rsyi_action'] ) ) return;
         // All primary actions use AJAX; this is a safety net for progressive-enhancement forms.
         check_admin_referer( 'rsyi_sa_admin_form' );
+    }
+
+    // ── Settings AJAX ──────────────────────────────────────────────────────────
+
+    public static function ajax_save_settings(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_manage_settings' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $institute_name = sanitize_text_field( wp_unslash( $_POST['rsyi_institute_name'] ?? '' ) );
+
+        if ( empty( $institute_name ) ) {
+            wp_send_json_error( [ 'message' => __( 'الاسم لا يمكن أن يكون فارغاً.', 'rsyi-sa' ) ] );
+        }
+
+        update_option( 'rsyi_institute_name', $institute_name );
+
+        wp_send_json_success( [ 'message' => __( 'تم حفظ الإعدادات بنجاح.', 'rsyi-sa' ) ] );
     }
 }

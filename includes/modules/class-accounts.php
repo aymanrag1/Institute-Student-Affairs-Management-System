@@ -48,6 +48,11 @@ class Accounts {
         add_action( 'wp_ajax_rsyi_staff_create_student',    [ __CLASS__, 'ajax_staff_create_student' ] );
         // Profile update
         add_action( 'wp_ajax_rsyi_update_student_profile',  [ __CLASS__, 'ajax_update_profile' ] );
+        // Bulk import: parse uploaded file then process batch
+        add_action( 'wp_ajax_rsyi_parse_import_file',       [ __CLASS__, 'ajax_parse_import_file' ] );
+        add_action( 'wp_ajax_rsyi_import_students_batch',   [ __CLASS__, 'ajax_import_students_batch' ] );
+        // Download blank import template (CSV)
+        add_action( 'wp_ajax_rsyi_download_import_template',[ __CLASS__, 'ajax_download_import_template' ] );
     }
 
     // ── Registration ─────────────────────────────────────────────────────────
@@ -343,5 +348,310 @@ class Accounts {
         if ( username_exists( $data['user_login'] ) ) $errors[] = __( 'اسم المستخدم موجود بالفعل.', 'rsyi-sa' );
         if ( email_exists( $data['user_email'] ) )    $errors[] = __( 'البريد الإلكتروني مسجل بالفعل.', 'rsyi-sa' );
         return $errors;
+    }
+
+    // ── Bulk Import ───────────────────────────────────────────────────────────
+
+    /**
+     * Step 1: Upload & parse the file (Excel/CSV) – return rows as JSON.
+     * AJAX endpoint: rsyi_parse_import_file
+     */
+    public static function ajax_parse_import_file(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_create_student' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        if ( empty( $_FILES['import_file'] ) || $_FILES['import_file']['error'] !== UPLOAD_ERR_OK ) {
+            wp_send_json_error( [ 'message' => __( 'فشل رفع الملف.', 'rsyi-sa' ) ] );
+        }
+
+        $file     = $_FILES['import_file'];
+        $tmp      = $file['tmp_name'];
+        $ext      = strtolower( pathinfo( $file['name'], PATHINFO_EXTENSION ) );
+
+        if ( $ext === 'csv' ) {
+            $rows = self::parse_csv( $tmp );
+        } elseif ( in_array( $ext, [ 'xlsx', 'xls' ], true ) ) {
+            $rows = self::parse_xlsx( $tmp );
+        } else {
+            wp_send_json_error( [ 'message' => __( 'صيغة الملف غير مدعومة. استخدم .xlsx أو .csv', 'rsyi-sa' ) ] );
+        }
+
+        // Strip header row (first row contains column names)
+        if ( ! empty( $rows ) ) {
+            array_shift( $rows );
+        }
+
+        // Remove completely empty rows
+        $rows = array_values( array_filter( $rows, function ( $r ) {
+            return array_filter( $r, fn( $v ) => trim( $v ) !== '' );
+        } ) );
+
+        wp_send_json_success( [ 'rows' => $rows, 'total' => count( $rows ) ] );
+    }
+
+    /**
+     * Step 2: Create WP accounts for a batch of rows.
+     * AJAX endpoint: rsyi_import_students_batch
+     *
+     * Expects: cohort_id, rows (JSON array of arrays)
+     */
+    public static function ajax_import_students_batch(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_create_student' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $cohort_id  = (int) ( $_POST['cohort_id'] ?? 0 );
+        $rows_json  = wp_unslash( $_POST['rows'] ?? '[]' );
+        $rows       = json_decode( $rows_json, true );
+        $creator_id = get_current_user_id();
+
+        if ( ! is_array( $rows ) || $cohort_id <= 0 ) {
+            wp_send_json_error( [ 'message' => __( 'بيانات غير صالحة.', 'rsyi-sa' ) ] );
+        }
+
+        $results = [];
+
+        foreach ( $rows as $i => $row ) {
+            // Columns: arabic_name, english_name, email, password, national_id, dob, phone
+            $arabic_name  = sanitize_text_field( $row[0] ?? '' );
+            $english_name = sanitize_text_field( $row[1] ?? '' );
+            $email        = sanitize_email( $row[2] ?? '' );
+            $password     = trim( $row[3] ?? '' );
+            $national_id  = sanitize_text_field( $row[4] ?? '' );
+            $dob          = sanitize_text_field( $row[5] ?? '' );
+            $phone        = sanitize_text_field( $row[6] ?? '' );
+
+            // Validate required fields
+            if ( empty( $arabic_name ) || empty( $english_name ) || ! is_email( $email ) ) {
+                $results[] = [
+                    'row'     => $i,
+                    'name'    => $arabic_name ?: '—',
+                    'email'   => $email,
+                    'success' => false,
+                    'message' => __( 'بيانات ناقصة أو بريد إلكتروني غير صالح.', 'rsyi-sa' ),
+                ];
+                continue;
+            }
+
+            if ( email_exists( $email ) ) {
+                $results[] = [
+                    'row'     => $i,
+                    'name'    => $arabic_name,
+                    'email'   => $email,
+                    'success' => false,
+                    'message' => __( 'البريد الإلكتروني مسجل بالفعل.', 'rsyi-sa' ),
+                ];
+                continue;
+            }
+
+            // Derive login from email prefix, ensure unique
+            $base_login = sanitize_user( strtolower( explode( '@', $email )[0] ) );
+            $login      = $base_login;
+            $suffix     = 1;
+            while ( username_exists( $login ) ) {
+                $login = $base_login . $suffix++;
+            }
+
+            // Auto-generate password if blank
+            if ( empty( $password ) ) {
+                $password = wp_generate_password( 12, true, false );
+            }
+
+            $user_id = wp_insert_user( [
+                'user_login'   => $login,
+                'user_email'   => $email,
+                'user_pass'    => $password,
+                'role'         => 'rsyi_student',
+                'display_name' => $english_name,
+            ] );
+
+            if ( is_wp_error( $user_id ) ) {
+                $results[] = [
+                    'row'     => $i,
+                    'name'    => $arabic_name,
+                    'email'   => $email,
+                    'success' => false,
+                    'message' => $user_id->get_error_message(),
+                ];
+                continue;
+            }
+
+            $data = [
+                'user_login'         => $login,
+                'user_email'         => $email,
+                'password'           => $password,
+                'arabic_full_name'   => $arabic_name,
+                'english_full_name'  => $english_name,
+                'english_first_name' => '',
+                'english_last_name'  => '',
+                'national_id_number' => $national_id,
+                'date_of_birth'      => $dob,
+                'phone'              => $phone,
+                'cohort_id'          => $cohort_id,
+            ];
+
+            $profile_id = self::create_profile( $user_id, $data, $creator_id );
+
+            Audit_Log::log( 'student_profile', $profile_id, 'create', [
+                'method'    => 'excel_import',
+                'cohort_id' => $cohort_id,
+            ], $creator_id );
+
+            $results[] = [
+                'row'        => $i,
+                'name'       => $arabic_name,
+                'email'      => $email,
+                'success'    => true,
+                'profile_id' => $profile_id,
+                'message'    => __( 'تم إنشاء الحساب بنجاح.', 'rsyi-sa' ),
+            ];
+        }
+
+        wp_send_json_success( [ 'results' => $results ] );
+    }
+
+    /**
+     * Download a blank CSV template that users fill in Excel.
+     * AJAX endpoint: rsyi_download_import_template (GET)
+     */
+    public static function ajax_download_import_template(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_create_student' ) ) {
+            wp_die( __( 'صلاحية غير كافية.', 'rsyi-sa' ) );
+        }
+
+        $headers = [
+            'الاسم العربي الكامل',
+            'الاسم الإنجليزي الكامل',
+            'البريد الإلكتروني',
+            'كلمة المرور',
+            'رقم الهوية القومية',
+            'تاريخ الميلاد (YYYY-MM-DD)',
+            'رقم الهاتف',
+        ];
+
+        $sample = [
+            'محمد أحمد علي',
+            'Mohamed Ahmed Ali',
+            'mohamed@example.com',
+            'Pass@1234',
+            '12345678901234',
+            '2000-05-15',
+            '01012345678',
+        ];
+
+        header( 'Content-Type: text/csv; charset=UTF-8' );
+        header( 'Content-Disposition: attachment; filename="rsyi_students_template.csv"' );
+        header( 'Cache-Control: no-cache, no-store, must-revalidate' );
+
+        // UTF-8 BOM so Excel opens it correctly with Arabic
+        echo "\xEF\xBB\xBF";
+
+        $out = fopen( 'php://output', 'w' );
+        fputcsv( $out, $headers );
+        fputcsv( $out, $sample );
+        fclose( $out );
+        exit;
+    }
+
+    // ── File parsers ──────────────────────────────────────────────────────────
+
+    /**
+     * Parse a CSV file and return array of rows (each row = array of values).
+     */
+    private static function parse_csv( string $file_path ): array {
+        $rows = [];
+        $handle = fopen( $file_path, 'r' );
+        if ( $handle === false ) {
+            return $rows;
+        }
+
+        // Consume UTF-8 BOM if present
+        $bom = fread( $handle, 3 );
+        if ( $bom !== "\xEF\xBB\xBF" ) {
+            rewind( $handle );
+        }
+
+        while ( ( $data = fgetcsv( $handle ) ) !== false ) {
+            $rows[] = array_map( 'trim', $data );
+        }
+        fclose( $handle );
+        return $rows;
+    }
+
+    /**
+     * Parse an .xlsx file using ZipArchive + SimpleXML (no external library needed).
+     * Returns array of rows.
+     */
+    private static function parse_xlsx( string $file_path ): array {
+        if ( ! class_exists( 'ZipArchive' ) ) {
+            return [];
+        }
+
+        $zip = new \ZipArchive();
+        if ( $zip->open( $file_path ) !== true ) {
+            return [];
+        }
+
+        // Shared strings table
+        $shared_strings = [];
+        $ss_xml = $zip->getFromName( 'xl/sharedStrings.xml' );
+        if ( $ss_xml ) {
+            $ss = simplexml_load_string( $ss_xml );
+            if ( $ss ) {
+                foreach ( $ss->si as $si ) {
+                    // A shared string may have plain <t> or rich-text <r><t> children
+                    $text = '';
+                    if ( isset( $si->t ) ) {
+                        $text = (string) $si->t;
+                    } else {
+                        foreach ( $si->r as $r ) {
+                            $text .= (string) $r->t;
+                        }
+                    }
+                    $shared_strings[] = $text;
+                }
+            }
+        }
+
+        // First worksheet
+        $sheet_xml = $zip->getFromName( 'xl/worksheets/sheet1.xml' );
+        $zip->close();
+
+        if ( ! $sheet_xml ) {
+            return [];
+        }
+
+        $sheet = simplexml_load_string( $sheet_xml );
+        if ( ! $sheet ) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ( $sheet->sheetData->row as $row ) {
+            $row_data = [];
+            foreach ( $row->c as $cell ) {
+                $cell_type  = (string) $cell['t'];
+                $cell_value = isset( $cell->v ) ? (string) $cell->v : '';
+
+                if ( $cell_type === 's' ) {
+                    // Shared string index
+                    $cell_value = $shared_strings[ (int) $cell_value ] ?? '';
+                } elseif ( $cell_type === 'inlineStr' ) {
+                    $cell_value = isset( $cell->is->t ) ? (string) $cell->is->t : '';
+                }
+
+                $row_data[] = trim( $cell_value );
+            }
+            $rows[] = $row_data;
+        }
+
+        return $rows;
     }
 }

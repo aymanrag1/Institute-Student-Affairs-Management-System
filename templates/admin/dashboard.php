@@ -16,7 +16,7 @@ $pending_overnight = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}
 $pending_expulsion = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}rsyi_expulsion_cases WHERE status = 'pending_dean'" );
 ?>
 <h1><?php esc_html_e( 'لوحة تحكم شؤون الطلاب', 'rsyi-sa' ); ?></h1>
-<p class="rsyi-subtitle"><?php esc_html_e( 'معهد البحر الأحمر للتخطيط البحري – الجونة', 'rsyi-sa' ); ?></p>
+<p class="rsyi-subtitle"><?php echo esc_html( get_option( 'rsyi_institute_name', 'معهد البحر الأحمر للتخطيط البحري – الجونة' ) ); ?></p>
 
 <div class="rsyi-stats-grid">
     <div class="rsyi-stat-card">
