@@ -1,0 +1,347 @@
+<?php
+/**
+ * Accounts Module
+ *
+ * Handles student self-registration and staff-created profiles.
+ * A student account starts in 'pending_docs' status and becomes
+ * 'active' only when all 8 mandatory documents are approved.
+ *
+ * @package RSYI_StudentAffairs
+ */
+
+namespace RSYI_SA\Modules;
+
+use RSYI_SA\Audit_Log;
+use RSYI_SA\Email_Notifications;
+
+defined( 'ABSPATH' ) || exit;
+
+class Accounts {
+
+    /** All 8 mandatory document types */
+    public const MANDATORY_DOC_TYPES = [
+        'DOC01_national_id_front',
+        'DOC02_national_id_back',
+        'DOC03_birth_certificate',
+        'DOC04_military_certificate',
+        'DOC05_highschool_certificate',
+        'DOC06_graduation_certificate',
+        'DOC07_police_record_foundation',
+        'DOC08_police_record_authority',
+    ];
+
+    public const DOC_TYPE_LABELS = [
+        'DOC01_national_id_front'        => 'بطاقة الرقم القومي (وجه)',
+        'DOC02_national_id_back'         => 'بطاقة الرقم القومي (ظهر)',
+        'DOC03_birth_certificate'        => 'شهادة الميلاد',
+        'DOC04_military_certificate'     => 'الشهادة العسكرية',
+        'DOC05_highschool_certificate'   => 'شهادة الثانوية العامة',
+        'DOC06_graduation_certificate'   => 'شهادة التخرج',
+        'DOC07_police_record_foundation' => 'فيش وتشبيه (التأسيس)',
+        'DOC08_police_record_authority'  => 'فيش وتشبيه (الجهة)',
+    ];
+
+    public static function init(): void {
+        // Self-registration form processing
+        add_action( 'wp_ajax_nopriv_rsyi_register_student', [ __CLASS__, 'ajax_register_student' ] );
+        // Staff-created student (admin AJAX)
+        add_action( 'wp_ajax_rsyi_staff_create_student',    [ __CLASS__, 'ajax_staff_create_student' ] );
+        // Profile update
+        add_action( 'wp_ajax_rsyi_update_student_profile',  [ __CLASS__, 'ajax_update_profile' ] );
+    }
+
+    // ── Registration ─────────────────────────────────────────────────────────
+
+    /**
+     * Self-registration: create WP user + student profile.
+     * AJAX endpoint: rsyi_register_student
+     */
+    public static function ajax_register_student(): void {
+        check_ajax_referer( 'rsyi_sa_portal', '_nonce' );
+
+        $data = self::sanitize_registration_input( $_POST );
+        $errors = self::validate_registration( $data );
+
+        if ( ! empty( $errors ) ) {
+            wp_send_json_error( [ 'errors' => $errors ] );
+        }
+
+        // Create WP user
+        $user_id = wp_insert_user( [
+            'user_login' => $data['user_login'],
+            'user_email' => $data['user_email'],
+            'user_pass'  => $data['password'],
+            'role'       => 'rsyi_student',
+            'first_name' => $data['english_first_name'],
+            'last_name'  => $data['english_last_name'],
+            'display_name' => $data['english_full_name'],
+        ] );
+
+        if ( is_wp_error( $user_id ) ) {
+            wp_send_json_error( [ 'errors' => [ $user_id->get_error_message() ] ] );
+        }
+
+        $profile_id = self::create_profile( $user_id, $data, 0 );
+
+        Audit_Log::log( 'student_profile', $profile_id, 'create', [
+            'method'     => 'self_registration',
+            'cohort_id'  => $data['cohort_id'],
+        ], $user_id );
+
+        wp_send_json_success( [
+            'message'    => __( 'تم إنشاء حسابك بنجاح. يرجى رفع المستندات المطلوبة.', 'rsyi-sa' ),
+            'profile_id' => $profile_id,
+        ] );
+    }
+
+    /**
+     * Staff-created student.
+     * AJAX endpoint: rsyi_staff_create_student
+     */
+    public static function ajax_staff_create_student(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_create_student' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $data = self::sanitize_registration_input( $_POST );
+        $errors = self::validate_registration( $data );
+
+        if ( ! empty( $errors ) ) {
+            wp_send_json_error( [ 'errors' => $errors ] );
+        }
+
+        $user_id = wp_insert_user( [
+            'user_login'   => $data['user_login'],
+            'user_email'   => $data['user_email'],
+            'user_pass'    => $data['password'],
+            'role'         => 'rsyi_student',
+            'display_name' => $data['english_full_name'],
+        ] );
+
+        if ( is_wp_error( $user_id ) ) {
+            wp_send_json_error( [ 'errors' => [ $user_id->get_error_message() ] ] );
+        }
+
+        $creator_id = get_current_user_id();
+        $profile_id = self::create_profile( $user_id, $data, $creator_id );
+
+        Audit_Log::log( 'student_profile', $profile_id, 'create', [
+            'method'    => 'staff_created',
+            'cohort_id' => $data['cohort_id'],
+        ], $creator_id );
+
+        wp_send_json_success( [
+            'message'    => __( 'تم إنشاء ملف الطالب بنجاح.', 'rsyi-sa' ),
+            'profile_id' => $profile_id,
+            'user_id'    => $user_id,
+        ] );
+    }
+
+    /**
+     * Update student profile fields (staff or student own).
+     */
+    public static function ajax_update_profile(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        $profile_id = (int) ( $_POST['profile_id'] ?? 0 );
+        $profile    = self::get_profile_by_id( $profile_id );
+
+        if ( ! $profile ) {
+            wp_send_json_error( [ 'message' => __( 'الملف غير موجود.', 'rsyi-sa' ) ] );
+        }
+
+        $current_user = wp_get_current_user();
+        $is_own_student = ( (int) $profile->user_id === (int) $current_user->ID );
+        if ( ! $is_own_student && ! $current_user->has_cap( 'rsyi_edit_student' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+        $update = [];
+        if ( isset( $_POST['arabic_full_name'] ) ) {
+            $update['arabic_full_name'] = sanitize_text_field( wp_unslash( $_POST['arabic_full_name'] ) );
+        }
+        if ( isset( $_POST['english_full_name'] ) ) {
+            $update['english_full_name'] = sanitize_text_field( wp_unslash( $_POST['english_full_name'] ) );
+        }
+        if ( isset( $_POST['phone'] ) ) {
+            $update['phone'] = sanitize_text_field( wp_unslash( $_POST['phone'] ) );
+        }
+        if ( isset( $_POST['date_of_birth'] ) ) {
+            $update['date_of_birth'] = sanitize_text_field( wp_unslash( $_POST['date_of_birth'] ) );
+        }
+
+        if ( empty( $update ) ) {
+            wp_send_json_error( [ 'message' => __( 'لا توجد بيانات للتحديث.', 'rsyi-sa' ) ] );
+        }
+
+        $wpdb->update(
+            $wpdb->prefix . 'rsyi_student_profiles',
+            $update,
+            [ 'id' => $profile_id ],
+            array_fill( 0, count( $update ), '%s' ),
+            [ '%d' ]
+        );
+
+        Audit_Log::log( 'student_profile', $profile_id, 'update', $update );
+
+        wp_send_json_success( [ 'message' => __( 'تم تحديث البيانات بنجاح.', 'rsyi-sa' ) ] );
+    }
+
+    // ── Status helpers ────────────────────────────────────────────────────────
+
+    /**
+     * Check if all 8 mandatory documents are approved; if so, activate student.
+     * Called by Documents module after each approval.
+     */
+    public static function maybe_activate_student( int $student_profile_id ): void {
+        global $wpdb;
+
+        $approved = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT doc_type FROM {$wpdb->prefix}rsyi_documents
+                 WHERE student_id = %d AND status = 'approved'",
+                $student_profile_id
+            )
+        );
+
+        $missing = array_diff( self::MANDATORY_DOC_TYPES, $approved );
+        if ( ! empty( $missing ) ) {
+            return;
+        }
+
+        // All approved – activate
+        $wpdb->update(
+            $wpdb->prefix . 'rsyi_student_profiles',
+            [ 'status' => 'active' ],
+            [ 'id' => $student_profile_id ],
+            [ '%s' ],
+            [ '%d' ]
+        );
+
+        $profile = self::get_profile_by_id( $student_profile_id );
+        if ( $profile ) {
+            Email_Notifications::all_documents_approved( (int) $profile->user_id );
+            Audit_Log::log( 'student_profile', $student_profile_id, 'activate', [
+                'trigger' => 'all_documents_approved',
+            ] );
+        }
+    }
+
+    // ── CRUD helpers ─────────────────────────────────────────────────────────
+
+    private static function create_profile( int $user_id, array $data, int $creator_id ): int {
+        global $wpdb;
+        $wpdb->insert(
+            $wpdb->prefix . 'rsyi_student_profiles',
+            [
+                'user_id'           => $user_id,
+                'cohort_id'         => $data['cohort_id'],
+                'arabic_full_name'  => $data['arabic_full_name'],
+                'english_full_name' => $data['english_full_name'],
+                'national_id_number'=> $data['national_id_number'] ?? '',
+                'date_of_birth'     => $data['date_of_birth']      ?? null,
+                'phone'             => $data['phone']              ?? null,
+                'status'            => 'pending_docs',
+                'created_by'        => $creator_id ?: null,
+            ],
+            [ '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d' ]
+        );
+        return (int) $wpdb->insert_id;
+    }
+
+    public static function get_profile_by_user_id( int $user_id ): ?object {
+        global $wpdb;
+        return $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}rsyi_student_profiles WHERE user_id = %d",
+                $user_id
+            )
+        );
+    }
+
+    public static function get_profile_by_id( int $id ): ?object {
+        global $wpdb;
+        return $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}rsyi_student_profiles WHERE id = %d",
+                $id
+            )
+        );
+    }
+
+    public static function get_all_students( array $args = [] ): array {
+        global $wpdb;
+        $where  = '1=1';
+        $params = [];
+
+        if ( ! empty( $args['cohort_id'] ) ) {
+            $where   .= ' AND sp.cohort_id = %d';
+            $params[] = (int) $args['cohort_id'];
+        }
+        if ( ! empty( $args['status'] ) ) {
+            $where   .= ' AND sp.status = %s';
+            $params[] = sanitize_key( $args['status'] );
+        }
+        if ( ! empty( $args['search'] ) ) {
+            $like     = '%' . $wpdb->esc_like( $args['search'] ) . '%';
+            $where   .= ' AND (sp.arabic_full_name LIKE %s OR sp.english_full_name LIKE %s OR u.user_email LIKE %s)';
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        $limit  = isset( $args['per_page'] ) ? (int) $args['per_page'] : 20;
+        $offset = isset( $args['page'] )     ? ( (int) $args['page'] - 1 ) * $limit : 0;
+        $params[] = $limit;
+        $params[] = $offset;
+
+        $sql = "SELECT sp.*, u.user_email, u.user_login, c.name AS cohort_name
+                FROM {$wpdb->prefix}rsyi_student_profiles sp
+                JOIN {$wpdb->users} u ON u.ID = sp.user_id
+                LEFT JOIN {$wpdb->prefix}rsyi_cohorts c ON c.id = sp.cohort_id
+                WHERE {$where}
+                ORDER BY sp.created_at DESC
+                LIMIT %d OFFSET %d";
+
+        return ! empty( $params )
+            ? $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) )
+            : $wpdb->get_results( $sql );
+    }
+
+    // ── Input helpers ─────────────────────────────────────────────────────────
+
+    private static function sanitize_registration_input( array $post ): array {
+        return [
+            'user_login'         => sanitize_user( wp_unslash( $post['user_login']         ?? '' ) ),
+            'user_email'         => sanitize_email( wp_unslash( $post['user_email']         ?? '' ) ),
+            'password'           => wp_unslash( $post['password']           ?? '' ),
+            'arabic_full_name'   => sanitize_text_field( wp_unslash( $post['arabic_full_name']   ?? '' ) ),
+            'english_full_name'  => sanitize_text_field( wp_unslash( $post['english_full_name']  ?? '' ) ),
+            'english_first_name' => sanitize_text_field( wp_unslash( $post['english_first_name'] ?? '' ) ),
+            'english_last_name'  => sanitize_text_field( wp_unslash( $post['english_last_name']  ?? '' ) ),
+            'national_id_number' => sanitize_text_field( wp_unslash( $post['national_id_number'] ?? '' ) ),
+            'date_of_birth'      => sanitize_text_field( wp_unslash( $post['date_of_birth']      ?? '' ) ),
+            'phone'              => sanitize_text_field( wp_unslash( $post['phone']              ?? '' ) ),
+            'cohort_id'          => (int) ( $post['cohort_id'] ?? 0 ),
+        ];
+    }
+
+    private static function validate_registration( array $data ): array {
+        $errors = [];
+        if ( empty( $data['user_login'] ) )        $errors[] = __( 'اسم المستخدم مطلوب.',         'rsyi-sa' );
+        if ( empty( $data['user_email'] ) )         $errors[] = __( 'البريد الإلكتروني مطلوب.',    'rsyi-sa' );
+        if ( ! is_email( $data['user_email'] ) )    $errors[] = __( 'البريد الإلكتروني غير صالح.', 'rsyi-sa' );
+        if ( empty( $data['password'] ) || strlen( $data['password'] ) < 8 ) {
+            $errors[] = __( 'كلمة المرور يجب أن تكون 8 أحرف على الأقل.', 'rsyi-sa' );
+        }
+        if ( empty( $data['arabic_full_name'] ) )   $errors[] = __( 'الاسم العربي الكامل مطلوب.', 'rsyi-sa' );
+        if ( empty( $data['english_full_name'] ) )  $errors[] = __( 'الاسم الإنجليزي الكامل مطلوب.', 'rsyi-sa' );
+        if ( $data['cohort_id'] <= 0 )              $errors[] = __( 'يرجى اختيار الفوج.',           'rsyi-sa' );
+        if ( username_exists( $data['user_login'] ) ) $errors[] = __( 'اسم المستخدم موجود بالفعل.', 'rsyi-sa' );
+        if ( email_exists( $data['user_email'] ) )    $errors[] = __( 'البريد الإلكتروني مسجل بالفعل.', 'rsyi-sa' );
+        return $errors;
+    }
+}
