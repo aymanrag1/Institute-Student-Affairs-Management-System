@@ -1,54 +1,106 @@
-name: Build & Publish Release
+name: Auto Release on Push
 
-# Triggers when you push a version tag, e.g.: git tag v1.0.1 && git push origin v1.0.1
+# ─────────────────────────────────────────────────────────────────────────────
+# كيف يعمل هذا الـ Workflow:
+#
+#   1. أي push على فرع main يُشغّل هذا الـ workflow تلقائياً.
+#   2. يقرأ رقم الإصدار الحالي من ملف البلاجن (مثلاً 1.0.0).
+#   3. يرفع رقم الـ patch تلقائياً (1.0.0 → 1.0.1 → 1.0.2...).
+#   4. يحدّث الملف ويعمل commit بـ [skip ci] لمنع الحلقة اللانهائية.
+#   5. ينشئ zip للبلاجن.
+#   6. ينشر GitHub Release مع الـ zip المرفق.
+#   7. WordPress يكتشف الإصدار الجديد ويظهر زر "تحديث الآن".
+#
+# الاستخدام اليومي:
+#   git add . && git commit -m "fix: وصف الإصلاح" && git push origin main
+#   ← كل شيء يحصل تلقائياً من هنا.
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
+    branches:
+      - main
+
+# منع تشغيل أكثر من instance واحد في نفس الوقت
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
 
 jobs:
   release:
-    name: Create GitHub Release with plugin zip
+    name: Bump version & publish release
     runs-on: ubuntu-latest
+
+    # تجاهل الـ commits التي ترفعها هذا الـ workflow نفسه (تحتوي [skip ci])
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
     permissions:
-      contents: write   # needed to create the GitHub Release
+      contents: write
 
     steps:
-      # ── 1. Checkout ──────────────────────────────────────────────────────
+
+      # ── 1. Checkout ────────────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── 2. Extract version from tag ───────────────────────────────────────
-      - name: Get version
-        id: version
+      # ── 2. قراءة الإصدار الحالي ورفع الـ patch ────────────────────────────
+      - name: Read & bump version
+        id: ver
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          VERSION="${TAG#v}"
-          echo "tag=$TAG"       >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # قراءة الإصدار من ملف البلاجن
+          CURRENT=$(grep -oP "define\( 'RSYI_SA_VERSION',\s+'\K[0-9]+\.[0-9]+\.[0-9]+" rsyi-student-affairs.php)
 
-      # ── 3. Verify version in plugin file matches the tag ─────────────────
-      - name: Verify plugin version
-        run: |
-          FILE_VERSION=$(grep "define( 'RSYI_SA_VERSION'" rsyi-student-affairs.php \
-            | grep -oP "'\K[^']+")
-          TAG_VERSION="${{ steps.version.outputs.version }}"
-          echo "Plugin file version : $FILE_VERSION"
-          echo "Git tag version     : $TAG_VERSION"
-          if [ "$FILE_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::Version mismatch! Update RSYI_SA_VERSION in rsyi-student-affairs.php to $TAG_VERSION"
+          if [ -z "$CURRENT" ]; then
+            echo "::error::لم يتم العثور على RSYI_SA_VERSION في ملف البلاجن"
             exit 1
           fi
 
-      # ── 4. Build the plugin zip ───────────────────────────────────────────
-      - name: Build zip
-        run: |
-          PLUGIN_SLUG="rsyi-student-affairs"
-          VERSION="${{ steps.version.outputs.version }}"
-          ZIP_NAME="${PLUGIN_SLUG}-v${VERSION}.zip"
+          echo "الإصدار الحالي : $CURRENT"
 
-          # Copy plugin files into a correctly-named subfolder
-          mkdir -p "build/${PLUGIN_SLUG}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW="${MAJOR}.${MINOR}.$((PATCH + 1))"
+
+          echo "الإصدار الجديد : $NEW"
+
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW"         >> "$GITHUB_OUTPUT"
+          echo "tag=v${NEW}"      >> "$GITHUB_OUTPUT"
+
+      # ── 3. تحديث رقم الإصدار في ملف البلاجن ──────────────────────────────
+      - name: Update version in plugin file
+        run: |
+          NEW="${{ steps.ver.outputs.new }}"
+
+          # تحديث define() constant
+          sed -i "s/\(define( 'RSYI_SA_VERSION',\s*'\)[^']*\('\)/\1${NEW}\2/" rsyi-student-affairs.php
+
+          # تحديث سطر Version في تعليق الـ header
+          sed -i "s/^\( \* Version:\s*\).*/\1${NEW}/" rsyi-student-affairs.php
+
+          # تأكيد التحديث
+          echo "── التحقق بعد التحديث ──"
+          grep -E "Version:|RSYI_SA_VERSION" rsyi-student-affairs.php | head -4
+
+      # ── 4. Commit ورفع الإصدار الجديد ─────────────────────────────────────
+      - name: Commit version bump
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add rsyi-student-affairs.php
+          git commit -m "chore: bump version to ${{ steps.ver.outputs.new }} [skip ci]"
+          git push origin main
+
+      # ── 5. بناء ملف zip للبلاجن ────────────────────────────────────────────
+      - name: Build plugin zip
+        run: |
+          SLUG="rsyi-student-affairs"
+          VER="${{ steps.ver.outputs.new }}"
+          ZIP="${SLUG}-v${VER}.zip"
+
+          mkdir -p "build/${SLUG}"
           rsync -av \
             --exclude='.git' \
             --exclude='.github' \
@@ -56,32 +108,30 @@ jobs:
             --exclude='*.DS_Store' \
             --exclude='node_modules' \
             --exclude='*.log' \
-            . "build/${PLUGIN_SLUG}/"
+            . "build/${SLUG}/"
 
-          # Create the zip with the folder at the root level
-          cd build
-          zip -r "../${ZIP_NAME}" "${PLUGIN_SLUG}/"
-          cd ..
+          cd build && zip -r "../${ZIP}" "${SLUG}/" && cd ..
 
-          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
-          echo "Built: $ZIP_NAME"
-          ls -lh "$ZIP_NAME"
+          echo "ZIP=${ZIP}" >> "$GITHUB_ENV"
+          echo "── الملف الناتج ──"
+          ls -lh "${ZIP}"
 
-      # ── 5. Publish the GitHub Release ─────────────────────────────────────
+      # ── 6. نشر GitHub Release ──────────────────────────────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: "RSYI Student Affairs v${{ steps.version.outputs.version }}"
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: "RSYI Student Affairs ${{ steps.ver.outputs.tag }}"
           body: |
-            ## الإصدار ${{ steps.version.outputs.version }}
+            ### ${{ steps.ver.outputs.tag }} – تحديث تلقائي
 
-            ### كيفية التحديث
-            - **تلقائياً**: إذا كان البلاجن مثبتاً على WordPress، ستظهر رسالة "تحديث متاح" في صفحة الإضافات. اضغط "تحديث الآن".
-            - **يدوياً**: حمّل الملف `${{ env.ZIP_NAME }}` ورفعه من لوحة التحكم → الإضافات → إضافة جديد → رفع إضافة.
+            **التغيير:** ${{ github.event.head_commit.message }}
+            **المطوّر:** ${{ github.event.head_commit.author.name }}
 
             ---
-            *تم الإنشاء تلقائياً بواسطة GitHub Actions.*
+            ### كيفية التحديث على WordPress
+            - **تلقائياً:** لوحة التحكم ← الإضافات ← ستظهر رسالة "تحديث متاح" ← اضغط **تحديث الآن**
+            - **يدوياً:** حمّل `${{ env.ZIP }}` وارفعه من لوحة التحكم ← الإضافات ← رفع إضافة
           draft: false
           prerelease: false
-          files: ${{ env.ZIP_NAME }}
+          files: ${{ env.ZIP }}
