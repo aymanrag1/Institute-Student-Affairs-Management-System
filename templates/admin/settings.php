@@ -294,7 +294,7 @@ $violation_types_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->pre
     $('#rsyi-check-update').on('click', function () {
         var btn  = $(this).prop('disabled', true);
         var stat = $('#rsyi-check-update-status');
-        stat.text('<?php echo esc_js( __( 'جاري التحقق…', 'rsyi-sa' ) ); ?>').css('color', '#666').show();
+        stat.html('⏳ <?php echo esc_js( __( 'جاري التحقق من GitHub…', 'rsyi-sa' ) ); ?>').css('color', '#666').show();
 
         $.post(rsyiSA.ajaxUrl, {
             action: 'rsyi_force_update_check',
@@ -302,14 +302,22 @@ $violation_types_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->pre
         }, function (res) {
             btn.prop('disabled', false);
             if (res.success) {
-                stat.text('✅ ' + res.data.message).css('color', '#1a7a4a');
-                setTimeout(function () { location.reload(); }, 1500);
+                stat.html('✅ ' + res.data.message).css('color', '#1a7a4a');
+                setTimeout(function () { location.reload(); }, 2000);
             } else {
-                stat.text('❌ ' + (res.data.message || '<?php echo esc_js( __( 'خطأ.', 'rsyi-sa' ) ); ?>')).css('color', '#c0392b');
+                var hints = {
+                    'auth'        : '<?php echo esc_js( __( 'تلميح: أنشئ Personal Access Token وأدخله في حقل Token أعلاه.', 'rsyi-sa' ) ); ?>',
+                    'no_releases' : '<?php echo esc_js( __( 'تلميح: لم تُنشر أي Releases على GitHub بعد. استخدم: git tag v1.0.0 && git push origin v1.0.0', 'rsyi-sa' ) ); ?>',
+                    'network'     : '<?php echo esc_js( __( 'تلميح: تأكد أن السيرفر يستطيع الوصول إلى الإنترنت (github.com).', 'rsyi-sa' ) ); ?>',
+                    'not_found'   : '<?php echo esc_js( __( 'تلميح: تأكد من اسم المستودع أو أن المستودع Public.', 'rsyi-sa' ) ); ?>'
+                };
+                var errorType = res.data.error_type || '';
+                var hint      = hints[errorType] ? '<br><small style="color:#888;">' + hints[errorType] + '</small>' : '';
+                stat.html('❌ ' + (res.data.message || '<?php echo esc_js( __( 'خطأ غير معروف.', 'rsyi-sa' ) ); ?>') + hint).css('color', '#c0392b');
             }
         }).fail(function () {
             btn.prop('disabled', false);
-            stat.text('❌ <?php echo esc_js( __( 'فشل الاتصال.', 'rsyi-sa' ) ); ?>').css('color', '#c0392b');
+            stat.html('❌ <?php echo esc_js( __( 'فشل الاتصال بالسيرفر.', 'rsyi-sa' ) ); ?>').css('color', '#c0392b');
         });
     });
 

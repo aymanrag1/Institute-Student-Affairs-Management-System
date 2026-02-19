@@ -217,33 +217,37 @@ class Menu {
             wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
         }
 
-        // Clear the cache so Updater::get_latest_release() re-fetches from GitHub
-        delete_transient( 'rsyi_sa_update_cache' );
+        // Direct API call – no transient dependency, returns detailed diagnostics.
+        $result = \RSYI_SA\Updater::check_connection();
 
-        // Force WordPress to re-check all plugin updates
-        delete_site_transient( 'update_plugins' );
-        wp_update_plugins();
-
-        $cached = get_transient( 'rsyi_sa_update_cache' );
-        if ( ! $cached ) {
-            wp_send_json_error( [ 'message' => __( 'تعذّر الاتصال بـ GitHub API. تأكد من أن المستودع عام أو أدخل Token صحيح.', 'rsyi-sa' ) ] );
+        if ( ! $result['success'] ) {
+            wp_send_json_error( [
+                'message'    => $result['error'],
+                'error_type' => $result['error_type'] ?? 'unknown',
+                'http_code'  => $result['http_code'] ?? 0,
+            ] );
         }
 
-        $latest_version = ltrim( $cached->tag_name ?? '', 'v' );
+        // Cache is already refreshed inside check_connection(); also clear the
+        // WP plugin-update transient so the dashboard notice updates on next page load.
+        delete_site_transient( 'update_plugins' );
+
+        $latest_version = $result['latest_version'];
+
         if ( version_compare( RSYI_SA_VERSION, $latest_version, '<' ) ) {
             wp_send_json_success( [
                 'message' => sprintf(
-                    /* translators: 1: latest version */
-                    __( 'يوجد تحديث جديد: الإصدار %s. توجه إلى صفحة الإضافات للتحديث.', 'rsyi-sa' ),
-                    $latest_version
+                    /* translators: %s: latest version number */
+                    __( 'يوجد تحديث جديد: الإصدار %s متاح. توجه إلى صفحة الإضافات للتحديث.', 'rsyi-sa' ),
+                    esc_html( $latest_version )
                 ),
             ] );
         } else {
             wp_send_json_success( [
                 'message' => sprintf(
-                    /* translators: 1: current version */
+                    /* translators: %s: current version number */
                     __( 'النظام محدَّث. الإصدار الحالي %s هو الأحدث.', 'rsyi-sa' ),
-                    RSYI_SA_VERSION
+                    esc_html( RSYI_SA_VERSION )
                 ),
             ] );
         }

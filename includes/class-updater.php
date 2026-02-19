@@ -46,6 +46,21 @@ class Updater {
     // ── GitHub API ────────────────────────────────────────────────────────────
 
     /**
+     * Build the request headers for GitHub API calls.
+     */
+    private static function build_headers(): array {
+        $headers = [
+            'Accept'     => 'application/vnd.github.v3+json',
+            'User-Agent' => 'WordPress/' . get_bloginfo( 'version' ) . '; RSYI-SA/' . RSYI_SA_VERSION,
+        ];
+        $token = get_option( 'rsyi_github_token', '' );
+        if ( $token ) {
+            $headers['Authorization'] = 'Bearer ' . $token;
+        }
+        return $headers;
+    }
+
+    /**
      * Fetch the latest GitHub release, with a 12-hour cache.
      */
     private static function get_latest_release(): ?object {
@@ -54,17 +69,8 @@ class Updater {
             return $cached ?: null;
         }
 
-        $token   = get_option( 'rsyi_github_token', '' );
-        $headers = [
-            'Accept'     => 'application/vnd.github.v3+json',
-            'User-Agent' => 'WordPress/' . get_bloginfo( 'version' ) . '; RSYI-SA/' . RSYI_SA_VERSION,
-        ];
-        if ( $token ) {
-            $headers['Authorization'] = 'token ' . $token;
-        }
-
         $url      = 'https://api.github.com/repos/' . self::GITHUB_USER . '/' . self::GITHUB_REPO . '/releases/latest';
-        $response = wp_remote_get( $url, [ 'timeout' => 15, 'headers' => $headers ] );
+        $response = wp_remote_get( $url, [ 'timeout' => 15, 'headers' => self::build_headers() ] );
 
         if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
             // Cache the failure for 30 minutes to avoid hammering the API
@@ -75,6 +81,90 @@ class Updater {
         $release = json_decode( wp_remote_retrieve_body( $response ) );
         set_transient( self::TRANSIENT_KEY, $release, self::CACHE_DURATION );
         return $release;
+    }
+
+    /**
+     * Directly check GitHub API connectivity and return a detailed status array.
+     * Always makes a fresh HTTP request (bypasses the cache).
+     * Updates the cache on success.
+     *
+     * Return keys:
+     *   'success'        (bool)
+     *   'latest_version' (string)  – present on success
+     *   'error'          (string)  – present on failure
+     *   'error_type'     (string)  – 'network' | 'not_found' | 'auth' | 'no_releases' | 'api_error'
+     *   'http_code'      (int)     – raw HTTP response code
+     */
+    public static function check_connection(): array {
+        $url      = 'https://api.github.com/repos/' . self::GITHUB_USER . '/' . self::GITHUB_REPO . '/releases/latest';
+        $response = wp_remote_get( $url, [ 'timeout' => 15, 'headers' => self::build_headers() ] );
+
+        // ── Network / WP_Error ────────────────────────────────────────────────
+        if ( is_wp_error( $response ) ) {
+            return [
+                'success'    => false,
+                'error_type' => 'network',
+                'http_code'  => 0,
+                'error'      => sprintf(
+                    /* translators: %s: WP_Error message */
+                    __( 'تعذّر الوصول إلى GitHub: %s', 'rsyi-sa' ),
+                    $response->get_error_message()
+                ),
+            ];
+        }
+
+        $http_code = (int) wp_remote_retrieve_response_code( $response );
+        $body      = json_decode( wp_remote_retrieve_body( $response ) );
+
+        // ── Authentication errors ─────────────────────────────────────────────
+        if ( $http_code === 401 || $http_code === 403 ) {
+            return [
+                'success'    => false,
+                'error_type' => 'auth',
+                'http_code'  => $http_code,
+                'error'      => __( 'GitHub Token غير صحيح أو الصلاحيات غير كافية (repo: read).', 'rsyi-sa' ),
+            ];
+        }
+
+        // ── Repo not found OR no releases yet ────────────────────────────────
+        if ( $http_code === 404 ) {
+            $msg = $body->message ?? '';
+            $error_type = ( strpos( strtolower( $msg ), 'not found' ) !== false && ! get_option( 'rsyi_github_token', '' ) )
+                ? 'not_found'
+                : 'no_releases';
+
+            return [
+                'success'    => false,
+                'error_type' => $error_type,
+                'http_code'  => 404,
+                'error'      => __( 'المستودع غير موجود، أو لا توجد إصدارات (Releases) منشورة بعد، أو المستودع خاص ويحتاج Token.', 'rsyi-sa' ),
+            ];
+        }
+
+        // ── Unexpected HTTP code ──────────────────────────────────────────────
+        if ( $http_code !== 200 ) {
+            return [
+                'success'    => false,
+                'error_type' => 'api_error',
+                'http_code'  => $http_code,
+                'error'      => sprintf(
+                    /* translators: %d: HTTP status code */
+                    __( 'استجابة غير متوقعة من GitHub API (HTTP %d).', 'rsyi-sa' ),
+                    $http_code
+                ),
+            ];
+        }
+
+        // ── Success ───────────────────────────────────────────────────────────
+        // Refresh the cache with the new data.
+        set_transient( self::TRANSIENT_KEY, $body, self::CACHE_DURATION );
+
+        return [
+            'success'        => true,
+            'http_code'      => 200,
+            'latest_version' => ltrim( $body->tag_name ?? '', 'v' ),
+            'release'        => $body,
+        ];
     }
 
     /**
