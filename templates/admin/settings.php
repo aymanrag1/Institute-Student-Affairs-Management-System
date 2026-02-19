@@ -179,8 +179,8 @@ $violation_types_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->pre
             <td>
                 <?php
                 global $wpdb;
-                // Auto-detect if an employees table exists from another RSYI system
-                $emp_table = $wpdb->prefix . 'rsyi_employees';
+                // Auto-detect if an employees table exists from the warehouse system (wp_iw_employees)
+                $emp_table = $wpdb->prefix . 'iw_employees';
                 $exists    = $wpdb->get_var( "SHOW TABLES LIKE '{$emp_table}'" );
                 if ( $exists ) :
                     $emp_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$emp_table}" );
