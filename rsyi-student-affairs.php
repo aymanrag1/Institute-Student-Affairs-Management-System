@@ -53,6 +53,7 @@ spl_autoload_register( function ( string $class ): void {
         'Modules\\Requests'          => 'includes/modules/class-requests.php',
         'Modules\\Behavior'          => 'includes/modules/class-behavior.php',
         'Modules\\Cohorts'           => 'includes/modules/class-cohorts.php',
+        'Modules\\Evaluations'       => 'includes/modules/class-evaluations.php',
         'Admin\\Menu'                => 'includes/admin/class-admin-menu.php',
         'Portal\\Shortcodes'         => 'includes/portal/class-portal-shortcodes.php',
     ];
@@ -83,6 +84,7 @@ function rsyi_sa_init(): void {
     RSYI_SA\Modules\Requests::init();
     RSYI_SA\Modules\Behavior::init();
     RSYI_SA\Modules\Cohorts::init();
+    RSYI_SA\Modules\Evaluations::init();
 
     // GitHub update checker (runs on both front and back end checks)
     RSYI_SA\Updater::init();
@@ -125,8 +127,8 @@ function rsyi_sa_admin_assets( string $hook ): void {
         'ajaxUrl' => admin_url( 'admin-ajax.php' ),
         'nonce'   => wp_create_nonce( 'rsyi_sa_admin' ),
         'i18n'    => [
-            'confirm_approve' => __( 'هل أنت متأكد من الموافقة؟', 'rsyi-sa' ),
-            'confirm_reject'  => __( 'هل أنت متأكد من الرفض؟', 'rsyi-sa' ),
+            'confirm_approve' => __( 'Are you sure you want to approve?', 'rsyi-sa' ),
+            'confirm_reject'  => __( 'Are you sure you want to reject?', 'rsyi-sa' ),
         ],
     ] );
 }

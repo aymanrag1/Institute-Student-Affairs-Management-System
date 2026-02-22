@@ -61,8 +61,12 @@ class Roles {
                     'rsyi_approve_cohort_transfer' => true,
                     // PDF
                     'rsyi_print_daily_report'      => true,
+                    // Evaluations
+                    'rsyi_view_evaluations'            => true,
+                    'rsyi_manage_evaluation_periods'   => true,
+                    'rsyi_submit_admin_evaluation'     => true,
                     // Settings
-                    'rsyi_manage_settings'         => true,
+                    'rsyi_manage_settings'             => true,
                 ],
             ],
 
@@ -84,6 +88,10 @@ class Roles {
                     'rsyi_create_violation'        => true,
                     'rsyi_assign_violation_points' => true,   // up to 20
                     'rsyi_print_daily_report'      => true,
+                    // Evaluations
+                    'rsyi_view_evaluations'            => true,
+                    'rsyi_manage_evaluation_periods'   => true,
+                    'rsyi_submit_admin_evaluation'     => true,
                 ],
             ],
 
@@ -112,6 +120,9 @@ class Roles {
                     'rsyi_approve_exit_permit'     => true,
                     'rsyi_reject_exit_permit'      => true,
                     'rsyi_print_daily_report'      => true,
+                    // Evaluations
+                    'rsyi_view_evaluations'        => true,
+                    'rsyi_submit_admin_evaluation' => true,
                 ],
             ],
 
@@ -124,6 +135,8 @@ class Roles {
                     'rsyi_submit_overnight_permit' => true,
                     'rsyi_view_own_violations'     => true,
                     'rsyi_acknowledge_warning'     => true,
+                    // Evaluations
+                    'rsyi_submit_peer_evaluation'  => true,
                 ],
             ],
         ];

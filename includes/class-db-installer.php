@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.0.0';
+    const DB_VERSION        = '1.1.0';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -256,6 +256,83 @@ class DB_Installer {
                 PRIMARY KEY (id),
                 KEY idx_transfer_student (student_id),
                 KEY idx_transfer_status  (status)
+            ) $charset;",
+
+            // ── Evaluation Periods ───────────────────────────────────
+            "CREATE TABLE {$p}rsyi_evaluation_periods (
+                id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                name        VARCHAR(120)    NOT NULL,
+                cohort_id   BIGINT UNSIGNED NOT NULL,
+                start_date  DATE            DEFAULT NULL,
+                end_date    DATE            DEFAULT NULL,
+                is_active   TINYINT(1)      NOT NULL DEFAULT 1,
+                created_by  BIGINT UNSIGNED NOT NULL,
+                created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_eval_period_cohort (cohort_id),
+                KEY idx_eval_period_active (is_active)
+            ) $charset;",
+
+            // ── Peer Evaluations ─────────────────────────────────────
+            // Each student rates a student supervisor on 5 criteria (/10 each = /50 max)
+            // Criteria:
+            //   1. Self-discipline in behavior and timing
+            //   2. Dealing with colleagues
+            //   3. Sense of responsibility
+            //   4. Decision making ability
+            //   5. Problem solving ability
+            "CREATE TABLE {$p}rsyi_peer_evaluations (
+                id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                period_id       BIGINT UNSIGNED NOT NULL,
+                evaluator_id    BIGINT UNSIGNED NOT NULL,
+                evaluatee_id    BIGINT UNSIGNED NOT NULL,
+                criterion_1     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                criterion_2     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                criterion_3     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                criterion_4     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                criterion_5     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                total           TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                notes           TEXT            DEFAULT NULL,
+                created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_peer_eval (period_id, evaluator_id, evaluatee_id),
+                KEY idx_peer_eval_period    (period_id),
+                KEY idx_peer_eval_evaluatee (evaluatee_id)
+            ) $charset;",
+
+            // ── Admin/Supervisor Evaluations ─────────────────────────
+            // Student Affairs Manager or Dorm Supervisor rates a student supervisor
+            // on 6 criteria (/10 each = /60 max)
+            // Criteria:
+            //   1. Self-discipline in behavior and timing
+            //   2. Dealing with colleagues
+            //   3. Sense of responsibility
+            //   4. Decision making – understanding and comprehending the mission
+            //   5. Problem solving – confidentiality in information transfer
+            //   6. Good use of authority/privileges
+            "CREATE TABLE {$p}rsyi_admin_evaluations (
+                id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                period_id       BIGINT UNSIGNED NOT NULL,
+                evaluatee_id    BIGINT UNSIGNED NOT NULL,
+                evaluator_id    BIGINT UNSIGNED NOT NULL,
+                evaluator_role  VARCHAR(60)     NOT NULL,
+                criterion_1     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                criterion_2     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                criterion_3     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                criterion_4     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                criterion_5     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                criterion_6     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                total           TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                notes           TEXT            DEFAULT NULL,
+                created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_admin_eval (period_id, evaluatee_id, evaluator_id),
+                KEY idx_admin_eval_period    (period_id),
+                KEY idx_admin_eval_evaluatee (evaluatee_id),
+                KEY idx_admin_eval_role      (evaluator_role)
             ) $charset;",
 
             // ── Audit Log ────────────────────────────────────────────

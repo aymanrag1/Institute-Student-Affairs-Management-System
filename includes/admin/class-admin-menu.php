@@ -36,8 +36,8 @@ class Menu {
         $icon = 'dashicons-welcome-learn-more';
 
         add_menu_page(
-            __( 'شؤون الطلاب – RSYI', 'rsyi-sa' ),
-            __( 'شؤون الطلاب', 'rsyi-sa' ),
+            __( 'Student Affairs – RSYI', 'rsyi-sa' ),
+            __( 'Student Affairs', 'rsyi-sa' ),
             'rsyi_view_all_students',
             'rsyi-dashboard',
             [ __CLASS__, 'page_dashboard' ],
@@ -46,17 +46,18 @@ class Menu {
         );
 
         $subpages = [
-            [ 'rsyi-dashboard',    __( 'لوحة التحكم', 'rsyi-sa' ),    'rsyi_view_all_students',    [ __CLASS__, 'page_dashboard' ] ],
-            [ 'rsyi-students',     __( 'الطلاب', 'rsyi-sa' ),          'rsyi_view_all_students',    [ __CLASS__, 'page_students' ] ],
-            [ 'rsyi-documents',    __( 'الوثائق', 'rsyi-sa' ),         'rsyi_view_all_documents',   [ __CLASS__, 'page_documents' ] ],
-            [ 'rsyi-exit',         __( 'أذونات الخروج', 'rsyi-sa' ),   'rsyi_view_all_requests',    [ __CLASS__, 'page_exit_permits' ] ],
-            [ 'rsyi-overnight',    __( 'أذونات المبيت', 'rsyi-sa' ),   'rsyi_view_all_requests',    [ __CLASS__, 'page_overnight_permits' ] ],
-            [ 'rsyi-violations',   __( 'المخالفات', 'rsyi-sa' ),       'rsyi_view_all_violations',  [ __CLASS__, 'page_violations' ] ],
-            [ 'rsyi-expulsion',    __( 'فصل طالب', 'rsyi-sa' ),         'rsyi_manage_expulsion',     [ __CLASS__, 'page_expulsion' ] ],
-            [ 'rsyi-cohorts',      __( 'الدفعة', 'rsyi-sa' ),            'rsyi_manage_cohorts',       [ __CLASS__, 'page_cohorts' ] ],
-            [ 'rsyi-daily-report', __( 'التقرير اليومي PDF', 'rsyi-sa' ), 'rsyi_print_daily_report', [ __CLASS__, 'page_daily_report' ] ],
-            [ 'rsyi-audit',        __( 'سجل الأحداث', 'rsyi-sa' ),     'rsyi_view_audit_log',       [ __CLASS__, 'page_audit_log' ] ],
-            [ 'rsyi-settings',     __( 'الإعدادات', 'rsyi-sa' ),       'rsyi_manage_settings',      [ __CLASS__, 'page_settings' ] ],
+            [ 'rsyi-dashboard',    __( 'Dashboard', 'rsyi-sa' ),       'rsyi_view_all_students',    [ __CLASS__, 'page_dashboard' ] ],
+            [ 'rsyi-students',     __( 'Students', 'rsyi-sa' ),        'rsyi_view_all_students',    [ __CLASS__, 'page_students' ] ],
+            [ 'rsyi-documents',    __( 'Documents', 'rsyi-sa' ),       'rsyi_view_all_documents',   [ __CLASS__, 'page_documents' ] ],
+            [ 'rsyi-exit',         __( 'Exit Permits', 'rsyi-sa' ),    'rsyi_view_all_requests',    [ __CLASS__, 'page_exit_permits' ] ],
+            [ 'rsyi-overnight',    __( 'Overnight Permits', 'rsyi-sa' ), 'rsyi_view_all_requests',  [ __CLASS__, 'page_overnight_permits' ] ],
+            [ 'rsyi-violations',   __( 'Violations', 'rsyi-sa' ),      'rsyi_view_all_violations',  [ __CLASS__, 'page_violations' ] ],
+            [ 'rsyi-expulsion',    __( 'Expulsion Cases', 'rsyi-sa' ), 'rsyi_manage_expulsion',     [ __CLASS__, 'page_expulsion' ] ],
+            [ 'rsyi-cohorts',      __( 'Cohorts', 'rsyi-sa' ),         'rsyi_manage_cohorts',       [ __CLASS__, 'page_cohorts' ] ],
+            [ 'rsyi-evaluations',  __( 'Evaluations', 'rsyi-sa' ),     'rsyi_view_evaluations',     [ __CLASS__, 'page_evaluations' ] ],
+            [ 'rsyi-daily-report', __( 'Daily Report PDF', 'rsyi-sa' ), 'rsyi_print_daily_report',  [ __CLASS__, 'page_daily_report' ] ],
+            [ 'rsyi-audit',        __( 'Audit Log', 'rsyi-sa' ),       'rsyi_view_audit_log',       [ __CLASS__, 'page_audit_log' ] ],
+            [ 'rsyi-settings',     __( 'Settings', 'rsyi-sa' ),        'rsyi_manage_settings',      [ __CLASS__, 'page_settings' ] ],
         ];
 
         foreach ( $subpages as $sub ) {
@@ -139,6 +140,11 @@ class Menu {
         self::render( 'cohorts', [ 'tab' => $tab ] );
     }
 
+    public static function page_evaluations(): void {
+        $tab = sanitize_key( $_GET['tab'] ?? 'aggregation' );
+        self::render( 'evaluations', [ 'tab' => $tab ] );
+    }
+
     public static function page_daily_report(): void {
         self::render( 'daily-report' );
     }
@@ -159,7 +165,7 @@ class Menu {
             echo '<div class="notice notice-error"><p>' . esc_html( "Template missing: {$template}" ) . '</p></div>';
             return;
         }
-        echo '<div class="wrap rsyi-admin-wrap" dir="rtl">';
+        echo '<div class="wrap rsyi-admin-wrap" dir="ltr">';
         extract( $vars, EXTR_SKIP ); // phpcs:ignore
         include $file;
         echo '</div>';
@@ -179,13 +185,13 @@ class Menu {
         check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
 
         if ( ! current_user_can( 'rsyi_manage_settings' ) ) {
-            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+            wp_send_json_error( [ 'message' => __( 'Insufficient permissions.', 'rsyi-sa' ) ] );
         }
 
         $institute_name = sanitize_text_field( wp_unslash( $_POST['rsyi_institute_name'] ?? '' ) );
 
         if ( empty( $institute_name ) ) {
-            wp_send_json_error( [ 'message' => __( 'اسم المعهد لا يمكن أن يكون فارغاً.', 'rsyi-sa' ) ] );
+            wp_send_json_error( [ 'message' => __( 'Institute name cannot be empty.', 'rsyi-sa' ) ] );
         }
 
         update_option( 'rsyi_institute_name', $institute_name );
@@ -207,14 +213,14 @@ class Menu {
             delete_transient( 'rsyi_sa_update_cache' );
         }
 
-        wp_send_json_success( [ 'message' => __( 'تم حفظ الإعدادات بنجاح.', 'rsyi-sa' ) ] );
+        wp_send_json_success( [ 'message' => __( 'Settings saved successfully.', 'rsyi-sa' ) ] );
     }
 
     public static function ajax_force_update_check(): void {
         check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
 
         if ( ! current_user_can( 'rsyi_manage_settings' ) ) {
-            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+            wp_send_json_error( [ 'message' => __( 'Insufficient permissions.', 'rsyi-sa' ) ] );
         }
 
         // Direct API call – no transient dependency, returns detailed diagnostics.
@@ -238,7 +244,7 @@ class Menu {
             wp_send_json_success( [
                 'message' => sprintf(
                     /* translators: %s: latest version number */
-                    __( 'يوجد تحديث جديد: الإصدار %s متاح. توجه إلى صفحة الإضافات للتحديث.', 'rsyi-sa' ),
+                    __( 'New update available: version %s. Go to the Plugins page to update.', 'rsyi-sa' ),
                     esc_html( $latest_version )
                 ),
             ] );
@@ -246,7 +252,7 @@ class Menu {
             wp_send_json_success( [
                 'message' => sprintf(
                     /* translators: %s: current version number */
-                    __( 'النظام محدَّث. الإصدار الحالي %s هو الأحدث.', 'rsyi-sa' ),
+                    __( 'System is up to date. Current version %s is the latest.', 'rsyi-sa' ),
                     esc_html( RSYI_SA_VERSION )
                 ),
             ] );
@@ -257,7 +263,7 @@ class Menu {
         check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
 
         if ( ! current_user_can( 'rsyi_manage_settings' ) ) {
-            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+            wp_send_json_error( [ 'message' => __( 'Insufficient permissions.', 'rsyi-sa' ) ] );
         }
 
         global $wpdb;
@@ -292,7 +298,7 @@ class Menu {
         wp_send_json_success( [
             'message' => sprintf(
                 /* translators: 1: added count, 2: total count */
-                __( 'تمت الإضافة بنجاح. أُضيف %1$d نوع جديد. الإجمالي: %2$d.', 'rsyi-sa' ),
+                __( 'Done. Added %1$d new type(s). Total: %2$d.', 'rsyi-sa' ),
                 $added,
                 $total
             ),
