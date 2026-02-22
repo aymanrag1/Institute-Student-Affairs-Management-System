@@ -234,7 +234,11 @@ class Evaluations {
     // ── AJAX: Save peer evaluation ────────────────────────────────────────────
 
     public static function ajax_save_peer_evaluation(): void {
-        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        // Accept both portal nonce (students) and admin nonce (staff)
+        $nonce = sanitize_text_field( wp_unslash( $_POST['_nonce'] ?? '' ) );
+        if ( ! wp_verify_nonce( $nonce, 'rsyi_sa_portal' ) && ! wp_verify_nonce( $nonce, 'rsyi_sa_admin' ) ) {
+            wp_send_json_error( [ 'message' => __( 'Security check failed.', 'rsyi-sa' ) ] );
+        }
 
         if ( ! current_user_can( 'rsyi_submit_peer_evaluation' ) && ! current_user_can( 'rsyi_view_evaluations' ) ) {
             wp_send_json_error( [ 'message' => __( 'Insufficient permissions.', 'rsyi-sa' ) ] );
