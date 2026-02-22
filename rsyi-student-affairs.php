@@ -100,6 +100,30 @@ function rsyi_sa_init(): void {
     RSYI_SA\Portal\Shortcodes::init();
 }
 
+// ─── Login / Registration Redirects ─────────────────────────────────────────
+// Redirect students to their portal dashboard after login (non-admin users).
+add_filter( 'login_redirect', 'rsyi_sa_login_redirect', 10, 3 );
+function rsyi_sa_login_redirect( string $redirect_to, string $requested_redirect_to, $user ): string {
+    if ( is_wp_error( $user ) ) {
+        return $redirect_to;
+    }
+    // Only redirect non-admins who have the student or other RSYI roles
+    if ( ! empty( $user->roles ) && ! in_array( 'administrator', (array) $user->roles, true ) ) {
+        if ( in_array( 'rsyi_student', (array) $user->roles, true ) ) {
+            $dashboard_id = get_option( 'rsyi_page_dashboard' );
+            if ( $dashboard_id ) {
+                return get_permalink( $dashboard_id ) ?: $redirect_to;
+            }
+        }
+        // Staff roles → WP admin
+        $staff_roles = [ 'rsyi_dean', 'rsyi_student_affairs_mgr', 'rsyi_student_supervisor', 'rsyi_dorm_supervisor' ];
+        if ( array_intersect( $staff_roles, (array) $user->roles ) ) {
+            return admin_url();
+        }
+    }
+    return $redirect_to;
+}
+
 // ─── Enqueue assets ──────────────────────────────────────────────────────────
 add_action( 'admin_enqueue_scripts', 'rsyi_sa_admin_assets' );
 function rsyi_sa_admin_assets( string $hook ): void {

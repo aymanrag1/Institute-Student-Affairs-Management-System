@@ -23,6 +23,7 @@ class DB_Installer {
         Roles::add_roles();
         self::create_upload_dir();
         self::seed_violation_types();
+        self::create_portal_pages();
         flush_rewrite_rules();
         update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
     }
@@ -372,6 +373,90 @@ class DB_Installer {
         $index = $dir . '/index.php';
         if ( ! file_exists( $index ) ) {
             file_put_contents( $index, "<?php // Silence is golden.\n" );
+        }
+    }
+
+    /**
+     * Create all student portal pages automatically on activation.
+     *
+     * Pages created (skipped if slug already exists):
+     *   - student-register   → [rsyi_portal_register]
+     *   - student-dashboard  → [rsyi_portal_dashboard]
+     *   - student-documents  → [rsyi_portal_documents]
+     *   - student-requests   → [rsyi_portal_requests]
+     *   - student-behavior   → [rsyi_portal_behavior]
+     *   - student-evaluation → [rsyi_portal_evaluation]
+     *
+     * Page IDs are stored in options so the plugin can link to them.
+     */
+    public static function create_portal_pages(): void {
+        $pages = [
+            [
+                'slug'      => 'student-register',
+                'title'     => 'Student Registration',
+                'shortcode' => '[rsyi_portal_register]',
+                'option'    => 'rsyi_page_register',
+            ],
+            [
+                'slug'      => 'student-dashboard',
+                'title'     => 'Student Dashboard',
+                'shortcode' => '[rsyi_portal_dashboard]',
+                'option'    => 'rsyi_page_dashboard',
+            ],
+            [
+                'slug'      => 'student-documents',
+                'title'     => 'My Documents',
+                'shortcode' => '[rsyi_portal_documents]',
+                'option'    => 'rsyi_page_documents',
+            ],
+            [
+                'slug'      => 'student-requests',
+                'title'     => 'My Permits & Requests',
+                'shortcode' => '[rsyi_portal_requests]',
+                'option'    => 'rsyi_page_requests',
+            ],
+            [
+                'slug'      => 'student-behavior',
+                'title'     => 'My Behavior Record',
+                'shortcode' => '[rsyi_portal_behavior]',
+                'option'    => 'rsyi_page_behavior',
+            ],
+            [
+                'slug'      => 'student-evaluation',
+                'title'     => 'Cohort Peer Evaluation',
+                'shortcode' => '[rsyi_portal_evaluation]',
+                'option'    => 'rsyi_page_evaluation',
+            ],
+        ];
+
+        foreach ( $pages as $page ) {
+            // Check if a page with this slug already exists
+            $existing = get_page_by_path( $page['slug'], OBJECT, 'page' );
+
+            if ( $existing ) {
+                // Store the ID even if it already existed
+                update_option( $page['option'], $existing->ID );
+                continue;
+            }
+
+            $page_id = wp_insert_post( [
+                'post_title'   => $page['title'],
+                'post_name'    => $page['slug'],
+                'post_content' => $page['shortcode'],
+                'post_status'  => 'publish',
+                'post_type'    => 'page',
+                'post_author'  => 1,
+            ] );
+
+            if ( $page_id && ! is_wp_error( $page_id ) ) {
+                update_option( $page['option'], $page_id );
+            }
+        }
+
+        // Set the register page as the WordPress login page redirect for students
+        $register_id = get_option( 'rsyi_page_register' );
+        if ( $register_id ) {
+            update_option( 'rsyi_register_page_url', get_permalink( $register_id ) );
         }
     }
 
