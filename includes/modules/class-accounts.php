@@ -95,8 +95,12 @@ class Accounts {
             'cohort_id'  => $data['cohort_id'],
         ], $user_id );
 
+        // Auto-login the new student so they can immediately upload documents
+        wp_set_auth_cookie( $user_id, false );
+        wp_set_current_user( $user_id );
+
         wp_send_json_success( [
-            'message'    => __( 'تم إنشاء حسابك بنجاح. يرجى رفع المستندات المطلوبة.', 'rsyi-sa' ),
+            'message'    => __( 'Account created successfully. Please upload your required documents.', 'rsyi-sa' ),
             'profile_id' => $profile_id,
         ] );
     }

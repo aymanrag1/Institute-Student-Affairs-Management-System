@@ -50,7 +50,7 @@ class Documents {
             wp_send_json_error( [ 'message' => __( 'يجب تسجيل الدخول.', 'rsyi-sa' ) ] );
         }
 
-        $doc_type   = sanitize_key( $_POST['doc_type']   ?? '' );
+        $doc_type   = sanitize_text_field( wp_unslash( $_POST['doc_type'] ?? '' ) );
         $student_id = (int) ( $_POST['student_id'] ?? 0 );
 
         if ( ! array_key_exists( $doc_type, Accounts::DOC_TYPE_LABELS ) ) {

@@ -159,9 +159,7 @@ function rsyi_sa_admin_assets( string $hook ): void {
 
 add_action( 'wp_enqueue_scripts', 'rsyi_sa_portal_assets' );
 function rsyi_sa_portal_assets(): void {
-    if ( ! is_user_logged_in() ) {
-        return;
-    }
+    // Load on all front-end pages: registration page needs the nonce even for guests
     wp_enqueue_style(
         'rsyi-sa-portal',
         RSYI_SA_PLUGIN_URL . 'assets/css/portal.css',
