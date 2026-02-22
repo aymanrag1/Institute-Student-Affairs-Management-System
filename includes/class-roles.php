@@ -3,11 +3,14 @@
  * Roles & Capabilities
  *
  * Role hierarchy (highest to lowest):
- *   rsyi_dean                 – Full authority; final approval on overnight, expulsion, cohort transfer
- *   rsyi_student_affairs_mgr  – Student Affairs Manager; approves exit permits step-2, overnight step-2
- *   rsyi_student_supervisor   – Student Supervisor; approves overnight step-1, logs violations (≤10 pts)
- *   rsyi_dorm_supervisor      – Dorm Supervisor; approves exit permits step-1, prints daily PDF
- *   rsyi_student              – Self-service portal access
+ *   rsyi_dean                    – Full authority; final approval on overnight, expulsion, cohort transfer
+ *   rsyi_student_affairs_mgr     – Student Affairs Manager; approves exit permits step-2, overnight step-2
+ *   rsyi_student_supervisor      – Student Supervisor; approves overnight step-1, logs violations (≤10 pts)
+ *   rsyi_dorm_supervisor         – Dorm Supervisor; approves exit permits step-1, prints daily PDF
+ *   rsyi_senior_naval_trainer    – كبير المدربين البحريين: حضور/غياب + رفع مواد + امتحانات
+ *   rsyi_naval_trainer           – المدرب البحري: حضور/غياب + رفع مواد + امتحانات
+ *   rsyi_preparatory_lecturer    – المحاضر التحضيري: حضور/غياب + رفع مواد + امتحانات
+ *   rsyi_student                 – Self-service portal access
  *
  * @package RSYI_StudentAffairs
  */
@@ -66,8 +69,13 @@ class Roles {
                     'rsyi_view_evaluations'            => true,
                     'rsyi_manage_evaluation_periods'   => true,
                     'rsyi_submit_admin_evaluation'     => true,
-                    // Settings
+                    // Attendance / Materials / Exams
+                    'rsyi_manage_attendance'       => true,
+                    'rsyi_upload_study_materials'  => true,
+                    'rsyi_manage_exams'            => true,
+                    // Settings & Roles
                     'rsyi_manage_settings'             => true,
+                    'rsyi_manage_roles'                => true,
                 ],
             ],
 
@@ -127,6 +135,40 @@ class Roles {
                 ],
             ],
 
+            // ── NEW: كبير المدربين البحريين ───────────────────────────
+            'rsyi_senior_naval_trainer' => [
+                'label' => 'Senior Naval Trainer / كبير المدربين البحريين',
+                'caps'  => [
+                    'rsyi_view_all_students'       => true,
+                    // Attendance / Materials / Exams – core features for trainers
+                    'rsyi_manage_attendance'       => true,
+                    'rsyi_upload_study_materials'  => true,
+                    'rsyi_manage_exams'            => true,
+                ],
+            ],
+
+            // ── NEW: المدرب البحري ────────────────────────────────────
+            'rsyi_naval_trainer' => [
+                'label' => 'Naval Trainer / المدرب البحري',
+                'caps'  => [
+                    'rsyi_view_all_students'       => true,
+                    'rsyi_manage_attendance'       => true,
+                    'rsyi_upload_study_materials'  => true,
+                    'rsyi_manage_exams'            => true,
+                ],
+            ],
+
+            // ── NEW: المحاضر التحضيري ─────────────────────────────────
+            'rsyi_preparatory_lecturer' => [
+                'label' => 'Preparatory Lecturer / المحاضر التحضيري',
+                'caps'  => [
+                    'rsyi_view_all_students'       => true,
+                    'rsyi_manage_attendance'       => true,
+                    'rsyi_upload_study_materials'  => true,
+                    'rsyi_manage_exams'            => true,
+                ],
+            ],
+
             'rsyi_student' => [
                 'label' => 'Student / طالب',
                 'caps'  => [
@@ -169,6 +211,47 @@ class Roles {
     }
 
     /**
+     * Sync roles without full deactivation/activation cycle.
+     * Called on plugins_loaded whenever the stored role-version differs from the current one.
+     * Adds missing capabilities and registers new roles; never removes existing custom data.
+     */
+    public static function sync_roles(): void {
+        self::define();
+
+        foreach ( self::$role_definitions as $slug => $def ) {
+            $role = get_role( $slug );
+            if ( ! $role ) {
+                // Role doesn't exist yet → add it fresh
+                add_role( $slug, $def['label'], $def['caps'] );
+            } else {
+                // Role exists → add any missing capabilities
+                foreach ( $def['caps'] as $cap => $grant ) {
+                    if ( ! isset( $role->capabilities[ $cap ] ) ) {
+                        $role->add_cap( $cap, $grant );
+                    }
+                }
+            }
+        }
+
+        // Sync administrator as well
+        $admin = get_role( 'administrator' );
+        if ( $admin ) {
+            $all_caps = [];
+            foreach ( self::$role_definitions as $def ) {
+                $all_caps = array_merge( $all_caps, $def['caps'] );
+            }
+            foreach ( array_keys( $all_caps ) as $cap ) {
+                if ( ! isset( $admin->capabilities[ $cap ] ) ) {
+                    $admin->add_cap( $cap, true );
+                }
+            }
+        }
+
+        // Store the version we've synced against
+        update_option( 'rsyi_sa_roles_version', RSYI_SA_VERSION );
+    }
+
+    /**
      * Remove custom roles (called on deactivation).
      */
     public static function remove_roles(): void {
@@ -177,11 +260,36 @@ class Roles {
             'rsyi_student_affairs_mgr',
             'rsyi_student_supervisor',
             'rsyi_dorm_supervisor',
+            'rsyi_senior_naval_trainer',
+            'rsyi_naval_trainer',
+            'rsyi_preparatory_lecturer',
             'rsyi_student',
         ];
         foreach ( $slugs as $slug ) {
             remove_role( $slug );
         }
+    }
+
+    /**
+     * Return all role definitions (public access for the permissions screen).
+     */
+    public static function get_definitions(): array {
+        self::define();
+        return self::$role_definitions;
+    }
+
+    /**
+     * Return all unique capability keys across all roles.
+     */
+    public static function get_all_caps(): array {
+        self::define();
+        $caps = [];
+        foreach ( self::$role_definitions as $def ) {
+            foreach ( array_keys( $def['caps'] ) as $cap ) {
+                $caps[ $cap ] = true;
+            }
+        }
+        return array_keys( $caps );
     }
 
     /**

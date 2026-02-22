@@ -136,7 +136,8 @@ class Accounts {
         }
 
         $creator_id = get_current_user_id();
-        $profile_id = self::create_profile( $user_id, $data, $creator_id );
+        // Staff-created students become active immediately (no document requirement).
+        $profile_id = self::create_profile( $user_id, $data, $creator_id, 'active' );
 
         Audit_Log::log( 'student_profile', $profile_id, 'create', [
             'method'    => 'staff_created',
@@ -182,6 +183,15 @@ class Accounts {
         }
         if ( isset( $_POST['date_of_birth'] ) ) {
             $update['date_of_birth'] = sanitize_text_field( wp_unslash( $_POST['date_of_birth'] ) );
+        }
+        if ( isset( $_POST['national_id_number'] ) ) {
+            $update['national_id_number'] = sanitize_text_field( wp_unslash( $_POST['national_id_number'] ) );
+        }
+        if ( isset( $_POST['cohort_id'] ) && current_user_can( 'rsyi_edit_student' ) ) {
+            $cohort_id = absint( $_POST['cohort_id'] );
+            if ( $cohort_id > 0 ) {
+                $update['cohort_id'] = $cohort_id;
+            }
         }
 
         if ( empty( $update ) ) {
@@ -294,7 +304,7 @@ class Accounts {
 
     // ── CRUD helpers ─────────────────────────────────────────────────────────
 
-    private static function create_profile( int $user_id, array $data, int $creator_id ): int {
+    private static function create_profile( int $user_id, array $data, int $creator_id, string $initial_status = 'pending_docs' ): int {
         global $wpdb;
         $wpdb->insert(
             $wpdb->prefix . 'rsyi_student_profiles',
@@ -306,7 +316,7 @@ class Accounts {
                 'national_id_number'=> $data['national_id_number'] ?? '',
                 'date_of_birth'     => $data['date_of_birth']      ?? null,
                 'phone'             => $data['phone']              ?? null,
-                'status'            => 'pending_docs',
+                'status'            => $initial_status,
                 'created_by'        => $creator_id ?: null,
             ],
             [ '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d' ]
@@ -552,7 +562,8 @@ class Accounts {
                 'cohort_id'          => $cohort_id,
             ];
 
-            $profile_id = self::create_profile( $user_id, $data, $creator_id );
+            // Bulk-imported students are active by default (staff-initiated).
+            $profile_id = self::create_profile( $user_id, $data, $creator_id, 'active' );
 
             Audit_Log::log( 'student_profile', $profile_id, 'create', [
                 'method'    => 'excel_import',

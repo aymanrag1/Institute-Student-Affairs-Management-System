@@ -89,29 +89,66 @@ $total_docs    = count( Accounts::MANDATORY_DOC_TYPES );
             <?php endforeach; ?>
         </table>
         <?php if ( current_user_can( 'rsyi_edit_student' ) ) : ?>
+        <?php
+        $all_cohorts = $wpdb->get_results( "SELECT id, name, code FROM {$wpdb->prefix}rsyi_cohorts WHERE is_active = 1 ORDER BY name ASC" );
+        ?>
         <div style="margin-top:14px;">
-            <button type="button" class="button" onclick="document.getElementById('rsyi-edit-form').style.display='block'; this.style.display='none';">
-                <?php esc_html_e( 'Edit Profile', 'rsyi-sa' ); ?>
+            <button type="button" class="button button-primary" id="rsyi-edit-toggle">
+                <?php esc_html_e( 'تعديل بيانات الطالب', 'rsyi-sa' ); ?>
             </button>
         </div>
         <form id="rsyi-edit-form" style="display:none; margin-top:16px; border-top:1px solid #eee; padding-top:14px;">
             <table class="form-table" style="margin:0;">
                 <tr>
-                    <th><?php esc_html_e( 'Phone', 'rsyi-sa' ); ?></th>
-                    <td><input type="tel" name="phone" class="regular-text" value="<?php echo esc_attr( $profile->phone ); ?>"></td>
+                    <th><?php esc_html_e( 'الاسم العربي', 'rsyi-sa' ); ?></th>
+                    <td><input type="text" name="arabic_full_name" class="regular-text" dir="rtl"
+                               value="<?php echo esc_attr( $profile->arabic_full_name ); ?>" required></td>
                 </tr>
                 <tr>
-                    <th><?php esc_html_e( 'National ID', 'rsyi-sa' ); ?></th>
-                    <td><input type="text" name="national_id_number" class="regular-text" value="<?php echo esc_attr( $profile->national_id_number ); ?>"></td>
+                    <th><?php esc_html_e( 'الاسم الإنجليزي', 'rsyi-sa' ); ?></th>
+                    <td><input type="text" name="english_full_name" class="regular-text"
+                               value="<?php echo esc_attr( $profile->english_full_name ); ?>" required></td>
+                </tr>
+                <tr>
+                    <th><?php esc_html_e( 'رقم الهوية القومية', 'rsyi-sa' ); ?></th>
+                    <td><input type="text" name="national_id_number" class="regular-text"
+                               value="<?php echo esc_attr( $profile->national_id_number ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><?php esc_html_e( 'رقم الهاتف', 'rsyi-sa' ); ?></th>
+                    <td><input type="tel" name="phone" class="regular-text"
+                               value="<?php echo esc_attr( $profile->phone ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><?php esc_html_e( 'تاريخ الميلاد', 'rsyi-sa' ); ?></th>
+                    <td><input type="date" name="date_of_birth"
+                               value="<?php echo esc_attr( $profile->date_of_birth ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><?php esc_html_e( 'الفوج', 'rsyi-sa' ); ?></th>
+                    <td>
+                        <select name="cohort_id" style="min-width:200px;">
+                            <?php foreach ( $all_cohorts as $c ) : ?>
+                            <option value="<?php echo esc_attr( $c->id ); ?>"
+                                <?php selected( (int) $profile->cohort_id, (int) $c->id ); ?>>
+                                <?php echo esc_html( $c->name . ' (' . $c->code . ')' ); ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
                 </tr>
             </table>
             <input type="hidden" name="action" value="rsyi_update_profile">
-            <input type="hidden" name="student_profile_id" value="<?php echo esc_attr( $profile->id ); ?>">
+            <input type="hidden" name="profile_id" value="<?php echo esc_attr( $profile->id ); ?>">
             <input type="hidden" name="_nonce" value="<?php echo esc_attr( wp_create_nonce( 'rsyi_sa_admin' ) ); ?>">
             <p>
-                <button type="submit" class="button button-primary" id="rsyi-edit-submit"><?php esc_html_e( 'Save Changes', 'rsyi-sa' ); ?></button>
-                <button type="button" class="button" onclick="document.getElementById('rsyi-edit-form').style.display='none';"><?php esc_html_e( 'Cancel', 'rsyi-sa' ); ?></button>
-                <span id="rsyi-edit-msg" style="margin-left:10px;"></span>
+                <button type="submit" class="button button-primary" id="rsyi-edit-submit">
+                    <?php esc_html_e( 'حفظ التغييرات', 'rsyi-sa' ); ?>
+                </button>
+                <button type="button" class="button" id="rsyi-edit-cancel">
+                    <?php esc_html_e( 'إلغاء', 'rsyi-sa' ); ?>
+                </button>
+                <span id="rsyi-edit-msg" style="margin-right:10px;"></span>
             </p>
         </form>
         <?php endif; ?>
@@ -177,6 +214,14 @@ $total_docs    = count( Accounts::MANDATORY_DOC_TYPES );
 
 <script>
 jQuery(function($){
+    $('#rsyi-edit-toggle').on('click', function(){
+        $('#rsyi-edit-form').slideToggle();
+        $(this).hide();
+    });
+    $('#rsyi-edit-cancel').on('click', function(){
+        $('#rsyi-edit-form').slideUp();
+        $('#rsyi-edit-toggle').show();
+    });
     $('#rsyi-edit-form').on('submit', function(e){
         e.preventDefault();
         var $btn = $('#rsyi-edit-submit');
@@ -184,7 +229,7 @@ jQuery(function($){
         $.post(rsyiSA.ajaxUrl, $(this).serialize(), function(res){
             $btn.prop('disabled', false);
             $('#rsyi-edit-msg').css('color', res.success ? 'green' : 'red').text(res.data.message);
-            if(res.success) setTimeout(function(){ location.reload(); }, 1000);
+            if(res.success) setTimeout(function(){ location.reload(); }, 1500);
         });
     });
 });

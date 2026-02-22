@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.1.0';
+    const DB_VERSION        = '1.2.0';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -334,6 +334,83 @@ class DB_Installer {
                 KEY idx_admin_eval_period    (period_id),
                 KEY idx_admin_eval_evaluatee (evaluatee_id),
                 KEY idx_admin_eval_role      (evaluator_role)
+            ) $charset;",
+
+            // ── Attendance ───────────────────────────────────────────
+            "CREATE TABLE {$p}rsyi_attendance (
+                id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                student_id   BIGINT UNSIGNED NOT NULL,
+                cohort_id    BIGINT UNSIGNED NOT NULL,
+                session_date DATE            NOT NULL,
+                session_name VARCHAR(120)    DEFAULT NULL,
+                status       VARCHAR(20)     NOT NULL DEFAULT 'present',
+                notes        TEXT            DEFAULT NULL,
+                recorded_by  BIGINT UNSIGNED NOT NULL,
+                created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_attendance (student_id, session_date, session_name(50)),
+                KEY idx_att_student (student_id),
+                KEY idx_att_cohort  (cohort_id),
+                KEY idx_att_date    (session_date)
+            ) $charset;",
+
+            // ── Study Materials ──────────────────────────────────────
+            "CREATE TABLE {$p}rsyi_study_materials (
+                id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                cohort_id     BIGINT UNSIGNED DEFAULT NULL,
+                title         VARCHAR(255)    NOT NULL,
+                description   TEXT            DEFAULT NULL,
+                file_path     VARCHAR(500)    NOT NULL,
+                file_name_orig VARCHAR(255)   NOT NULL,
+                file_size     INT UNSIGNED    DEFAULT NULL,
+                mime_type     VARCHAR(100)    DEFAULT NULL,
+                subject       VARCHAR(120)    DEFAULT NULL,
+                uploaded_by   BIGINT UNSIGNED NOT NULL,
+                is_active     TINYINT(1)      NOT NULL DEFAULT 1,
+                created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_mat_cohort   (cohort_id),
+                KEY idx_mat_uploader (uploaded_by),
+                KEY idx_mat_active   (is_active)
+            ) $charset;",
+
+            // ── Exams ────────────────────────────────────────────────
+            "CREATE TABLE {$p}rsyi_exams (
+                id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                cohort_id    BIGINT UNSIGNED DEFAULT NULL,
+                title        VARCHAR(255)    NOT NULL,
+                description  TEXT            DEFAULT NULL,
+                subject      VARCHAR(120)    DEFAULT NULL,
+                exam_date    DATE            DEFAULT NULL,
+                duration_min SMALLINT UNSIGNED DEFAULT NULL,
+                max_score    SMALLINT UNSIGNED NOT NULL DEFAULT 100,
+                is_active    TINYINT(1)      NOT NULL DEFAULT 1,
+                created_by   BIGINT UNSIGNED NOT NULL,
+                created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_exam_cohort  (cohort_id),
+                KEY idx_exam_date    (exam_date),
+                KEY idx_exam_active  (is_active)
+            ) $charset;",
+
+            // ── Exam Results ─────────────────────────────────────────
+            "CREATE TABLE {$p}rsyi_exam_results (
+                id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                exam_id     BIGINT UNSIGNED NOT NULL,
+                student_id  BIGINT UNSIGNED NOT NULL,
+                score       SMALLINT UNSIGNED DEFAULT NULL,
+                grade       VARCHAR(10)     DEFAULT NULL,
+                notes       TEXT            DEFAULT NULL,
+                recorded_by BIGINT UNSIGNED NOT NULL,
+                created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_exam_result (exam_id, student_id),
+                KEY idx_result_exam    (exam_id),
+                KEY idx_result_student (student_id)
             ) $charset;",
 
             // ── Audit Log ────────────────────────────────────────────

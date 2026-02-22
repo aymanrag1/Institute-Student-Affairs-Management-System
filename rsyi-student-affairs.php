@@ -3,7 +3,7 @@
  * Plugin Name:       RSYI Student Affairs Management System
  * Plugin URI:        https://redsea-yacht-institute.com
  * Description:       Complete Student Affairs Management System for Red Sea Yacht Institute (El Gouna). Manages student accounts, mandatory documents, exit/overnight permits, behavior violations, cohort governance, and expulsion workflow.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 6.0
  * Requires PHP:      8.0
  * Author:            RSYI Dev Team
@@ -20,7 +20,7 @@
 defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-define( 'RSYI_SA_VERSION',     '1.1.0' );
+define( 'RSYI_SA_VERSION',     '1.2.0' );
 define( 'RSYI_SA_PLUGIN_FILE', __FILE__ );
 define( 'RSYI_SA_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'RSYI_SA_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -75,6 +75,17 @@ add_action( 'plugins_loaded', 'rsyi_sa_init' );
 function rsyi_sa_init(): void {
     load_plugin_textdomain( 'rsyi-sa', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
 
+    // ── Permanent role sync ───────────────────────────────────────────────────
+    // On every load, if the stored roles-version is behind the current plugin
+    // version, sync new roles / caps without requiring a full deactivation cycle.
+    $stored_roles_ver = get_option( 'rsyi_sa_roles_version', '0.0.0' );
+    if ( version_compare( $stored_roles_ver, RSYI_SA_VERSION, '<' ) ) {
+        RSYI_SA\Roles::sync_roles();
+        // Also run DB upgrades in case new tables were added
+        RSYI_SA\DB_Installer::create_tables();
+        update_option( RSYI_SA\DB_Installer::DB_VERSION_OPTION, RSYI_SA\DB_Installer::DB_VERSION );
+    }
+
     // Secure download endpoint (registered before any output)
     RSYI_SA\Secure_Download::init();
 
@@ -116,7 +127,15 @@ function rsyi_sa_login_redirect( string $redirect_to, string $requested_redirect
             }
         }
         // Staff roles → WP admin
-        $staff_roles = [ 'rsyi_dean', 'rsyi_student_affairs_mgr', 'rsyi_student_supervisor', 'rsyi_dorm_supervisor' ];
+        $staff_roles = [
+            'rsyi_dean',
+            'rsyi_student_affairs_mgr',
+            'rsyi_student_supervisor',
+            'rsyi_dorm_supervisor',
+            'rsyi_senior_naval_trainer',
+            'rsyi_naval_trainer',
+            'rsyi_preparatory_lecturer',
+        ];
         if ( array_intersect( $staff_roles, (array) $user->roles ) ) {
             return admin_url();
         }

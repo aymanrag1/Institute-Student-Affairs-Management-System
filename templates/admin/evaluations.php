@@ -392,19 +392,17 @@ if ( $selected_period ) {
         <tr>
             <th scope="row"><label for="eval_evaluatee"><?php esc_html_e( 'Student Being Evaluated', 'rsyi-sa' ); ?></label></th>
             <td>
-                <?php if ( ! empty( $evaluatee_list ) ) : ?>
                 <select name="evaluatee_id" id="eval_evaluatee" required style="min-width:300px;">
-                    <option value=""><?php esc_html_e( '— Select a Student —', 'rsyi-sa' ); ?></option>
+                    <option value=""><?php esc_html_e( '— Select a Period first —', 'rsyi-sa' ); ?></option>
                     <?php foreach ( $evaluatee_list as $ev ) : ?>
                         <option value="<?php echo esc_attr( $ev->user_id ); ?>">
                             <?php echo esc_html( $ev->english_full_name ); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <?php else : ?>
-                <p class="description"><?php esc_html_e( 'Select an active period first to load students.', 'rsyi-sa' ); ?></p>
-                <select name="evaluatee_id" id="eval_evaluatee" style="min-width:300px; display:none;"></select>
-                <?php endif; ?>
+                <span id="eval_evaluatee_loading" style="display:none; margin-right:8px; color:#888;">
+                    <?php esc_html_e( 'Loading…', 'rsyi-sa' ); ?>
+                </span>
             </td>
         </tr>
     </table>
@@ -469,14 +467,49 @@ jQuery(function($){
     }
     $(document).on('input change', '.rsyi-score-input', recalcAdminTotal);
 
+    // Dynamic evaluatee loading when period changes
+    $('#eval_period').on('change', function(){
+        var period_id = $(this).val();
+        var $sel  = $('#eval_evaluatee');
+        var $spin = $('#eval_evaluatee_loading');
+
+        $sel.html('<option value=""><?php echo esc_js( esc_html__( '— Loading… —', 'rsyi-sa' ) ); ?></option>');
+
+        if ( ! period_id ) {
+            $sel.html('<option value=""><?php echo esc_js( esc_html__( '— Select a Period first —', 'rsyi-sa' ) ); ?></option>');
+            return;
+        }
+
+        $spin.show();
+        $.post(rsyiSA.ajaxUrl, {
+            action:    'rsyi_get_period_students',
+            _nonce:    rsyiSA.nonce,
+            period_id: period_id
+        }, function(res){
+            $spin.hide();
+            if ( res.success && res.data.students.length ) {
+                var opts = '<option value=""><?php echo esc_js( esc_html__( '— Select a Student —', 'rsyi-sa' ) ); ?></option>';
+                $.each(res.data.students, function(i, s){
+                    opts += '<option value="' + s.user_id + '">' + s.english_full_name + '</option>';
+                });
+                $sel.html(opts);
+            } else {
+                $sel.html('<option value=""><?php echo esc_js( esc_html__( '— No active students —', 'rsyi-sa' ) ); ?></option>');
+            }
+        });
+    });
+
     // AJAX submit
+    var savingText  = '<?php echo esc_js( esc_html__( 'Saving…', 'rsyi-sa' ) ); ?>';
+    var savedBtnTxt = '<?php echo esc_js( esc_html__( 'Save Evaluation', 'rsyi-sa' ) ); ?>';
+
     $('#rsyi-admin-eval-form').on('submit', function(e){
         e.preventDefault();
         var $btn = $('#rsyi-admin-eval-submit');
         var $msg = $('#rsyi-admin-eval-msg');
-        $btn.prop('disabled', true).text('<?php esc_js( esc_html_e( 'Saving…', 'rsyi-sa' ) ); ?>');
+        $btn.prop('disabled', true).text(savingText);
         $.post(rsyiSA.ajaxUrl, $(this).serialize(), function(res){
-            $btn.prop('disabled', false).text('<?php esc_js( esc_html_e( 'Save Evaluation', 'rsyi-sa' ) ); ?>');
+            $btn.prop('disabled', false).text(savedBtnTxt);
             $msg.show().css('color', res.success ? 'green' : 'red')
                 .text(res.data.message);
         });
