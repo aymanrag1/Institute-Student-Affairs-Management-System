@@ -30,6 +30,7 @@ class Menu {
         add_action( 'wp_ajax_rsyi_save_settings',           [ __CLASS__, 'ajax_save_settings' ] );
         add_action( 'wp_ajax_rsyi_reseed_violation_types',  [ __CLASS__, 'ajax_reseed_violation_types' ] );
         add_action( 'wp_ajax_rsyi_force_update_check',      [ __CLASS__, 'ajax_force_update_check' ] );
+        add_action( 'wp_ajax_rsyi_create_portal_pages',     [ __CLASS__, 'ajax_create_portal_pages' ] );
     }
 
     public static function register_menus(): void {
@@ -257,6 +258,20 @@ class Menu {
                 ),
             ] );
         }
+    }
+
+    public static function ajax_create_portal_pages(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_manage_settings' ) ) {
+            wp_send_json_error( [ 'message' => __( 'Insufficient permissions.', 'rsyi-sa' ) ] );
+        }
+
+        \RSYI_SA\DB_Installer::create_portal_pages();
+
+        wp_send_json_success( [
+            'message' => __( 'Portal pages created successfully. The page list has been updated.', 'rsyi-sa' ),
+        ] );
     }
 
     public static function ajax_reseed_violation_types(): void {

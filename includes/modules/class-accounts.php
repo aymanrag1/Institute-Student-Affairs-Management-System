@@ -53,6 +53,8 @@ class Accounts {
         add_action( 'wp_ajax_rsyi_import_students_batch',   [ __CLASS__, 'ajax_import_students_batch' ] );
         // Download blank import template (CSV)
         add_action( 'wp_ajax_rsyi_download_import_template',[ __CLASS__, 'ajax_download_import_template' ] );
+        // Delete student
+        add_action( 'wp_ajax_rsyi_delete_student',           [ __CLASS__, 'ajax_delete_student' ] );
     }
 
     // ── Registration ─────────────────────────────────────────────────────────
@@ -193,6 +195,57 @@ class Accounts {
         Audit_Log::log( 'student_profile', $profile_id, 'update', $update );
 
         wp_send_json_success( [ 'message' => __( 'تم تحديث البيانات بنجاح.', 'rsyi-sa' ) ] );
+    }
+
+    /**
+     * Delete a student: removes the WP user and all related custom-table records.
+     * AJAX endpoint: rsyi_delete_student
+     */
+    public static function ajax_delete_student(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_delete_student' ) ) {
+            wp_send_json_error( [ 'message' => __( 'Insufficient permissions.', 'rsyi-sa' ) ] );
+        }
+
+        $profile_id = absint( $_POST['profile_id'] ?? 0 );
+        if ( ! $profile_id ) {
+            wp_send_json_error( [ 'message' => __( 'Invalid student ID.', 'rsyi-sa' ) ] );
+        }
+
+        $profile = self::get_profile_by_id( $profile_id );
+        if ( ! $profile ) {
+            wp_send_json_error( [ 'message' => __( 'Student not found.', 'rsyi-sa' ) ] );
+        }
+
+        $user_id = (int) $profile->user_id;
+
+        global $wpdb;
+        $prefix = $wpdb->prefix;
+
+        // Delete related records from custom tables
+        $wpdb->delete( "{$prefix}rsyi_documents",        [ 'student_id' => $profile_id ], [ '%d' ] );
+        $wpdb->delete( "{$prefix}rsyi_behavior_records", [ 'student_id' => $profile_id ], [ '%d' ] );
+        $wpdb->delete( "{$prefix}rsyi_exit_permits",     [ 'student_id' => $profile_id ], [ '%d' ] );
+        $wpdb->delete( "{$prefix}rsyi_overnight_permits",[ 'student_id' => $profile_id ], [ '%d' ] );
+        $wpdb->delete( "{$prefix}rsyi_peer_evaluations", [ 'evaluatee_id' => $profile_id ], [ '%d' ] );
+        $wpdb->delete( "{$prefix}rsyi_peer_evaluations", [ 'evaluator_id' => $profile_id ], [ '%d' ] );
+        $wpdb->delete( "{$prefix}rsyi_admin_evaluations",[ 'student_id'  => $profile_id ], [ '%d' ] );
+
+        // Delete the profile row
+        $wpdb->delete( "{$prefix}rsyi_student_profiles", [ 'id' => $profile_id ], [ '%d' ] );
+
+        // Log before deleting user (so we have a record)
+        Audit_Log::log( 'student_profile', $profile_id, 'delete', [
+            'deleted_by' => get_current_user_id(),
+            'user_id'    => $user_id,
+        ] );
+
+        // Delete the WordPress user (reassign content to admin)
+        require_once ABSPATH . 'wp-admin/includes/user.php';
+        wp_delete_user( $user_id );
+
+        wp_send_json_success( [ 'message' => __( 'Student deleted successfully.', 'rsyi-sa' ) ] );
     }
 
     // ── Status helpers ────────────────────────────────────────────────────────

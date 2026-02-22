@@ -39,6 +39,7 @@ class Roles {
                     'rsyi_create_student'          => true,
                     'rsyi_edit_student'            => true,
                     'rsyi_suspend_student'         => true,
+                    'rsyi_delete_student'          => true,
                     // Documents
                     'rsyi_approve_document'        => true,
                     'rsyi_reject_document'         => true,
