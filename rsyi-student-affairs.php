@@ -70,10 +70,34 @@ spl_autoload_register( function ( string $class ): void {
 register_activation_hook( __FILE__, [ 'RSYI_SA\\DB_Installer', 'activate' ] );
 register_deactivation_hook( __FILE__, [ 'RSYI_SA\\Roles', 'remove_roles' ] );
 
+// ─── RSYI HR System Dependency Check ─────────────────────────────────────────
+// Show an admin notice if HR System is not active.
+add_action( 'admin_notices', 'rsyi_sa_hr_dependency_notice' );
+function rsyi_sa_hr_dependency_notice(): void {
+    if ( ! function_exists( 'rsyi_hr_get_departments' ) ) {
+        echo '<div class="notice notice-error is-dismissible"><p>'
+            . '<strong>RSYI Student Affairs</strong> يتطلب تفعيل '
+            . '<strong>RSYI HR System</strong> أولاً لكي يعمل بشكل صحيح.'
+            . '</p></div>';
+    }
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
-add_action( 'plugins_loaded', 'rsyi_sa_init' );
+// Priority 20 ensures we load AFTER RSYI HR System (which loads at priority 10).
+add_action( 'plugins_loaded', 'rsyi_sa_init', 20 );
 function rsyi_sa_init(): void {
+    // Bail out gracefully if RSYI HR System is not active.
+    // The admin notice above already informs the administrator.
+    if ( ! function_exists( 'rsyi_hr_get_departments' ) ) {
+        return;
+    }
+
     load_plugin_textdomain( 'rsyi-sa', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+
+    // ── Register HR role-extension hook ──────────────────────────────────────
+    // This ensures SA caps are (re-)applied to HR roles on every page load
+    // in addition to the direct call inside sync_roles() / add_roles().
+    RSYI_SA\Roles::register_hr_extend_hook();
 
     // ── Permanent role sync ───────────────────────────────────────────────────
     // On every load, if the stored roles-version is behind the current plugin

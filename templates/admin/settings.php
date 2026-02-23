@@ -253,23 +253,28 @@ foreach ( $portal_pages as $option => $info ) {
     </p>
     <table class="form-table" role="presentation">
         <tr>
-            <th><?php esc_html_e( 'Employees Table', 'rsyi-sa' ); ?></th>
+            <th><?php esc_html_e( 'RSYI HR System', 'rsyi-sa' ); ?></th>
             <td>
                 <?php
-                global $wpdb;
-                $emp_table = $wpdb->prefix . 'iw_employees';
-                $exists    = $wpdb->get_var( "SHOW TABLES LIKE '{$emp_table}'" );
-                if ( $exists ) :
-                    $emp_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$emp_table}" );
+                $hr_active = function_exists( 'rsyi_hr_get_employees' );
+                if ( $hr_active ) :
+                    $emp_count = (int) apply_filters( 'rsyi_hr_count_employees', 0, 'all' );
                 ?>
                 <span class="rsyi-badge rsyi-status-active">✅ <?php esc_html_e( 'Connected', 'rsyi-sa' ); ?></span>
                 <p class="description">
-                    <?php printf( esc_html__( 'Employees table detected. Total employees: %d', 'rsyi-sa' ), $emp_count ); ?>
+                    <?php
+                    printf(
+                        /* translators: %1$s: HR version, %2$d: employee count */
+                        esc_html__( 'RSYI HR System v%1$s active. Total employees: %2$d', 'rsyi-sa' ),
+                        esc_html( defined( 'RSYI_HR_VERSION' ) ? RSYI_HR_VERSION : '—' ),
+                        $emp_count
+                    );
+                    ?>
                 </p>
                 <?php else : ?>
                 <span class="rsyi-badge rsyi-status-pending"><?php esc_html_e( 'Not Connected', 'rsyi-sa' ); ?></span>
                 <p class="description">
-                    <?php esc_html_e( 'No employees table found. This integration will activate automatically when the HR Management system is installed.', 'rsyi-sa' ); ?>
+                    <?php esc_html_e( 'RSYI HR System plugin is not active. Student Affairs requires it to manage roles and departments.', 'rsyi-sa' ); ?>
                 </p>
                 <?php endif; ?>
             </td>

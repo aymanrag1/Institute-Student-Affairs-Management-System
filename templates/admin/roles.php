@@ -19,6 +19,23 @@ if ( ! current_user_can( 'rsyi_manage_roles' ) ) {
 $definitions = Roles::get_definitions();
 $all_caps    = Roles::get_all_caps();
 
+// HR-managed roles: SA capabilities are injected via rsyi_hr_extend_roles hook.
+// These roles are created/owned by RSYI HR System; SA only manages their SA caps.
+$hr_managed_roles = [];
+foreach ( [ 'rsyi_dean', 'rsyi_hr_manager', 'rsyi_dept_head', 'rsyi_staff', 'rsyi_readonly' ] as $hr_slug ) {
+    $hr_role = get_role( $hr_slug );
+    if ( $hr_role ) {
+        $hr_labels = [
+            'rsyi_dean'       => 'Dean / عميد (HR)',
+            'rsyi_hr_manager' => 'HR Manager / مدير الموارد البشرية (HR)',
+            'rsyi_dept_head'  => 'Dept Head / رئيس قسم (HR)',
+            'rsyi_staff'      => 'Staff / موظف (HR)',
+            'rsyi_readonly'   => 'Read Only / مشاهد (HR)',
+        ];
+        $hr_managed_roles[ $hr_slug ] = [ 'label' => $hr_labels[ $hr_slug ] ?? $hr_slug, 'role' => $hr_role ];
+    }
+}
+
 // Group capabilities by category for better display
 $cap_groups = [
     'طلاب'         => [ 'rsyi_view_all_students', 'rsyi_create_student', 'rsyi_edit_student', 'rsyi_suspend_student', 'rsyi_delete_student' ],
@@ -91,7 +108,9 @@ $active_role      = $active_role_slug ? get_role( $active_role_slug ) : null;
         <h3 style="margin-top:0; padding-bottom:8px; border-bottom:1px solid #ddd;">
             <?php esc_html_e( 'الأدوار المتاحة', 'rsyi-sa' ); ?>
         </h3>
-        <ul style="margin:0; padding:0; list-style:none;">
+        <!-- SA-specific roles -->
+        <p style="margin:0 0 6px; font-size:11px; color:#888; direction:rtl;">أدوار شئون الطلاب</p>
+        <ul style="margin:0 0 16px; padding:0; list-style:none;">
         <?php foreach ( $definitions as $slug => $def ) :
             $is_active = ( $slug === $active_role_slug );
         ?>
@@ -107,18 +126,52 @@ $active_role      = $active_role_slug ? get_role( $active_role_slug ) : null;
         </li>
         <?php endforeach; ?>
         </ul>
+
+        <!-- HR-managed roles (SA caps only) -->
+        <?php if ( ! empty( $hr_managed_roles ) ) : ?>
+        <p style="margin:0 0 6px; font-size:11px; color:#888; direction:rtl;">أدوار الموارد البشرية (HR)</p>
+        <ul style="margin:0; padding:0; list-style:none;">
+        <?php foreach ( $hr_managed_roles as $slug => $info ) :
+            $is_active = ( $slug === $active_role_slug );
+        ?>
+        <li style="margin-bottom:6px;">
+            <a href="<?php echo esc_url( add_query_arg( [ 'page' => 'rsyi-roles', 'role' => $slug ], admin_url( 'admin.php' ) ) ); ?>"
+               style="display:block; padding:10px 14px; border-radius:4px; text-decoration:none;
+                      background:<?php echo $is_active ? '#2271b1' : '#f0f4f8'; ?>;
+                      color:<?php echo $is_active ? '#fff' : '#2c3338'; ?>;
+                      border:1px solid <?php echo $is_active ? '#2271b1' : '#b8c4cc'; ?>;">
+                <?php echo esc_html( $info['label'] ); ?>
+                <br><small style="opacity:.7; font-size:11px;"><?php echo esc_html( $slug ); ?></small>
+            </a>
+        </li>
+        <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
     </div>
 
     <!-- ── Capabilities editor ── -->
     <div>
-    <?php if ( $active_role && isset( $definitions[ $active_role_slug ] ) ) :
-        $def_caps = $definitions[ $active_role_slug ]['caps'];
-        // Get live caps from WP (may differ after manual edits)
+    <?php
+    $is_hr_role = isset( $hr_managed_roles[ $active_role_slug ] );
+    if ( $active_role && ( isset( $definitions[ $active_role_slug ] ) || $is_hr_role ) ) :
+        // For HR roles use their live caps; for SA roles use definition caps as baseline
         $live_caps = $active_role->capabilities;
+        $role_label = $is_hr_role
+            ? $hr_managed_roles[ $active_role_slug ]['label']
+            : $definitions[ $active_role_slug ]['label'];
     ?>
         <h2 style="margin-top:0;">
-            <?php echo esc_html( $definitions[ $active_role_slug ]['label'] ); ?>
+            <?php echo esc_html( $role_label ); ?>
         </h2>
+        <?php if ( $is_hr_role ) : ?>
+        <div class="notice notice-info inline" style="margin:0 0 16px; padding:8px 12px; direction:rtl;">
+            <p style="margin:0;">
+                <strong>دور يديره نظام الموارد البشرية (HR System).</strong>
+                يمكنك تعديل صلاحيات شئون الطلاب (<code>rsyi_*</code>) على هذا الدور فقط.
+                لا يمكن تعديل بنية الدور نفسه من هنا.
+            </p>
+        </div>
+        <?php endif; ?>
         <p style="color:#555; margin-top:0;">
             <?php echo esc_html( $active_role_slug ); ?>
             &mdash; <?php esc_html_e( 'تحديد الصلاحيات المطلوبة ثم اضغط "حفظ"', 'rsyi-sa' ); ?>
