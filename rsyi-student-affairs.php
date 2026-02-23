@@ -71,10 +71,20 @@ register_activation_hook( __FILE__, [ 'RSYI_SA\\DB_Installer', 'activate' ] );
 register_deactivation_hook( __FILE__, [ 'RSYI_SA\\Roles', 'remove_roles' ] );
 
 // ─── RSYI HR System Dependency Check ─────────────────────────────────────────
+// HR System is considered active when its version constant is defined OR when
+// its primary API function exists. The constant approach is more reliable since
+// it is set at file-include time, before any hooks run.
+function rsyi_sa_hr_active(): bool {
+    return defined( 'RSYI_HR_VERSION' )
+        || function_exists( 'rsyi_hr_get_departments' )
+        || class_exists( 'RSYI_HR\\Plugin' )
+        || class_exists( 'RSYI_HR' );
+}
+
 // Show an admin notice if HR System is not active.
 add_action( 'admin_notices', 'rsyi_sa_hr_dependency_notice' );
 function rsyi_sa_hr_dependency_notice(): void {
-    if ( ! function_exists( 'rsyi_hr_get_departments' ) ) {
+    if ( ! rsyi_sa_hr_active() ) {
         echo '<div class="notice notice-error is-dismissible"><p>'
             . '<strong>RSYI Student Affairs</strong> يتطلب تفعيل '
             . '<strong>RSYI HR System</strong> أولاً لكي يعمل بشكل صحيح.'
@@ -87,8 +97,7 @@ function rsyi_sa_hr_dependency_notice(): void {
 add_action( 'plugins_loaded', 'rsyi_sa_init', 20 );
 function rsyi_sa_init(): void {
     // Bail out gracefully if RSYI HR System is not active.
-    // The admin notice above already informs the administrator.
-    if ( ! function_exists( 'rsyi_hr_get_departments' ) ) {
+    if ( ! rsyi_sa_hr_active() ) {
         return;
     }
 

@@ -256,7 +256,7 @@ foreach ( $portal_pages as $option => $info ) {
             <th><?php esc_html_e( 'RSYI HR System', 'rsyi-sa' ); ?></th>
             <td>
                 <?php
-                $hr_active = function_exists( 'rsyi_hr_get_employees' );
+                $hr_active = rsyi_sa_hr_active();
                 if ( $hr_active ) :
                     $emp_count = (int) apply_filters( 'rsyi_hr_count_employees', 0, 'all' );
                 ?>
