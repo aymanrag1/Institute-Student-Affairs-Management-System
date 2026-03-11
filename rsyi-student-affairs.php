@@ -116,9 +116,11 @@ function rsyi_sa_init(): void {
         RSYI_SA\Roles::sync_roles();
         // Upgrade DB tables (adds new columns via dbDelta – safe on existing data)
         RSYI_SA\DB_Installer::create_tables();
-        // Ensure new portal pages exist (idempotent – skips if page already exists)
-        RSYI_SA\DB_Installer::create_portal_pages();
         update_option( RSYI_SA\DB_Installer::DB_VERSION_OPTION, RSYI_SA\DB_Installer::DB_VERSION );
+        // Portal page creation uses wp_insert_post() which must NOT be called during
+        // plugins_loaded (fires save_post and other actions before WP is fully ready).
+        // Defer to init where post functions are fully safe to call.
+        add_action( 'init', [ 'RSYI_SA\\DB_Installer', 'create_portal_pages' ], 1 );
     }
 
     // Secure download endpoint (registered before any output)
