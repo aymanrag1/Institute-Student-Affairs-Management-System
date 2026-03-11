@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.3.0';
+    const DB_VERSION        = '1.3.1';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -416,6 +416,21 @@ class DB_Installer {
                 UNIQUE KEY uq_exam_result (exam_id, student_id),
                 KEY idx_result_exam    (exam_id),
                 KEY idx_result_student (student_id)
+            ) $charset;",
+
+            // ── Exam Questions ───────────────────────────────────────
+            "CREATE TABLE {$p}rsyi_exam_questions (
+                id              BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+                exam_id         BIGINT UNSIGNED  NOT NULL,
+                question_number SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+                question_text   TEXT             NOT NULL,
+                image_id        BIGINT UNSIGNED  DEFAULT NULL,
+                marks           DECIMAL(5,2)     NOT NULL DEFAULT 1.00,
+                created_at      DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at      DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_q_exam  (exam_id),
+                KEY idx_q_order (exam_id, question_number)
             ) $charset;",
 
             // ── Audit Log ────────────────────────────────────────────

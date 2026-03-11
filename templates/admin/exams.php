@@ -91,6 +91,12 @@ function rsyi_auto_grade( int $score, int $max ): string {
         <?php esc_html_e( 'تعديل الامتحان', 'rsyi-sa' ); ?>
     </a>
     <?php endif; ?>
+    <?php if ( current_user_can( 'rsyi_manage_exams' ) ) : ?>
+    <a href="<?php echo esc_url( add_query_arg( [ 'page' => 'rsyi-exams', 'tab' => 'questions', 'exam_id' => $selected_exam_id ], admin_url( 'admin.php' ) ) ); ?>"
+       class="nav-tab <?php echo $active_tab === 'questions' ? 'nav-tab-active' : ''; ?>">
+        <?php esc_html_e( 'أسئلة الامتحان', 'rsyi-sa' ); ?>
+    </a>
+    <?php endif; ?>
     <a href="<?php echo esc_url( add_query_arg( [ 'page' => 'rsyi-exams', 'tab' => 'results', 'exam_id' => $selected_exam_id ], admin_url( 'admin.php' ) ) ); ?>"
        class="nav-tab <?php echo $active_tab === 'results' ? 'nav-tab-active' : ''; ?>">
         <?php esc_html_e( 'إدخال النتائج', 'rsyi-sa' ); ?>
@@ -424,6 +430,225 @@ function rsyi_auto_grade( int $score, int $max ): string {
     </p>
 </form>
 <?php endif; ?>
+
+<!-- ── Questions tab ── -->
+<?php elseif ( $active_tab === 'questions' && $selected_exam && current_user_can( 'rsyi_manage_exams' ) ) : ?>
+<h2 dir="rtl">
+    <?php echo esc_html( $selected_exam->title ); ?> —
+    <?php esc_html_e( 'أسئلة الامتحان', 'rsyi-sa' ); ?>
+</h2>
+
+<!-- Question form (add / edit) -->
+<div id="rsyi-q-form-wrap" style="background:#fff; border:1px solid #ccd0d4; border-radius:4px; padding:20px; max-width:700px; margin-bottom:20px; display:none;" dir="rtl">
+    <h3 id="rsyi-q-form-title" style="margin-top:0;"><?php esc_html_e( 'إضافة سؤال جديد', 'rsyi-sa' ); ?></h3>
+    <input type="hidden" id="rsyi-q-id" value="">
+    <input type="hidden" id="rsyi-q-exam-id" value="<?php echo esc_attr( $selected_exam_id ); ?>">
+
+    <table class="form-table" style="margin:0;">
+        <tr>
+            <th style="width:120px;"><?php esc_html_e( 'رقم السؤال', 'rsyi-sa' ); ?></th>
+            <td><input type="number" id="rsyi-q-number" min="1" value="1" style="width:70px; text-align:center;"></td>
+        </tr>
+        <tr>
+            <th><?php esc_html_e( 'نص السؤال', 'rsyi-sa' ); ?></th>
+            <td><textarea id="rsyi-q-text" rows="4" style="width:100%; min-width:400px;" required></textarea></td>
+        </tr>
+        <tr>
+            <th><?php esc_html_e( 'صورة (اختياري)', 'rsyi-sa' ); ?></th>
+            <td>
+                <input type="hidden" id="rsyi-q-image-id" value="">
+                <div id="rsyi-q-image-preview" style="margin-bottom:8px; display:none;">
+                    <img id="rsyi-q-image-thumb" src="" style="max-width:200px; max-height:150px; border:1px solid #ddd; border-radius:4px; display:block; margin-bottom:6px;">
+                    <button type="button" id="rsyi-q-remove-image" class="button button-small" style="color:#a00; border-color:#a00;">
+                        ✕ <?php esc_html_e( 'إزالة الصورة', 'rsyi-sa' ); ?>
+                    </button>
+                </div>
+                <button type="button" id="rsyi-q-select-image" class="button">
+                    🖼 <?php esc_html_e( 'اختر صورة من المكتبة', 'rsyi-sa' ); ?>
+                </button>
+            </td>
+        </tr>
+        <tr>
+            <th><?php esc_html_e( 'الدرجة', 'rsyi-sa' ); ?></th>
+            <td><input type="number" id="rsyi-q-marks" min="0" step="0.5" value="1" style="width:80px; text-align:center;"></td>
+        </tr>
+    </table>
+
+    <p style="margin-top:16px;">
+        <button type="button" id="rsyi-q-save" class="button button-primary"><?php esc_html_e( 'حفظ السؤال', 'rsyi-sa' ); ?></button>
+        <button type="button" id="rsyi-q-cancel" class="button" style="margin-right:8px;"><?php esc_html_e( 'إلغاء', 'rsyi-sa' ); ?></button>
+        <span id="rsyi-q-msg" style="margin-right:10px;"></span>
+    </p>
+</div>
+
+<!-- Add button -->
+<p>
+    <button type="button" id="rsyi-q-add-btn" class="button button-primary">
+        + <?php esc_html_e( 'إضافة سؤال جديد', 'rsyi-sa' ); ?>
+    </button>
+</p>
+
+<!-- Questions list -->
+<div id="rsyi-questions-list" dir="rtl">
+    <p style="color:#888;"><?php esc_html_e( 'جارٍ تحميل الأسئلة…', 'rsyi-sa' ); ?></p>
+</div>
+
+<script>
+jQuery(function($){
+
+    var examId  = <?php echo (int) $selected_exam_id; ?>;
+    var nonce   = rsyiSA.nonce;
+    var ajaxUrl = rsyiSA.ajaxUrl;
+    var mediaFrame;
+
+    // ── Load questions list ───────────────────────────────────────────────────
+    function loadQuestions() {
+        $.post( ajaxUrl, { action: 'rsyi_get_questions', exam_id: examId, _nonce: nonce }, function(res) {
+            if ( ! res.success ) { $('#rsyi-questions-list').html('<p style="color:red;">' + res.data.message + '</p>'); return; }
+            var rows = res.data;
+            if ( ! rows.length ) {
+                $('#rsyi-questions-list').html('<p style="color:#888;"><?php echo esc_js( __( 'لا توجد أسئلة بعد. أضف سؤالاً جديداً.', 'rsyi-sa' ) ); ?></p>');
+                return;
+            }
+            var html = '<table class="wp-list-table widefat fixed striped"><thead><tr>';
+            html += '<th style="width:50px; text-align:center;">#</th>';
+            html += '<th><?php echo esc_js( __( 'السؤال', 'rsyi-sa' ) ); ?></th>';
+            html += '<th style="width:90px; text-align:center;"><?php echo esc_js( __( 'صورة', 'rsyi-sa' ) ); ?></th>';
+            html += '<th style="width:70px; text-align:center;"><?php echo esc_js( __( 'الدرجة', 'rsyi-sa' ) ); ?></th>';
+            html += '<th style="width:120px;"><?php echo esc_js( __( 'إجراءات', 'rsyi-sa' ) ); ?></th>';
+            html += '</tr></thead><tbody>';
+            $.each( rows, function(i, q) {
+                html += '<tr id="q-row-' + q.id + '">';
+                html += '<td style="text-align:center; font-weight:700;">' + q.question_number + '</td>';
+                html += '<td>' + $('<div>').text(q.question_text).html().replace(/\n/g,'<br>') + '</td>';
+                html += '<td style="text-align:center;">';
+                if ( q.image_url ) {
+                    html += '<img src="' + q.image_url + '" style="max-width:60px; max-height:50px; border-radius:3px; border:1px solid #ddd; cursor:pointer;" onclick="window.open(this.src)">';
+                } else {
+                    html += '<span style="color:#bbb;">—</span>';
+                }
+                html += '</td>';
+                html += '<td style="text-align:center;">' + parseFloat(q.marks) + '</td>';
+                html += '<td><button class="button button-small rsyi-q-edit" data-q=\'' + JSON.stringify(q) + '\'><?php echo esc_js( __( 'تعديل', 'rsyi-sa' ) ); ?></button> ';
+                html += '<button class="button button-small rsyi-q-delete" data-id="' + q.id + '" style="color:#a00; border-color:#a00;"><?php echo esc_js( __( 'حذف', 'rsyi-sa' ) ); ?></button></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            $('#rsyi-questions-list').html(html);
+        });
+    }
+
+    loadQuestions();
+
+    // ── Show/hide form ────────────────────────────────────────────────────────
+    function resetForm() {
+        $('#rsyi-q-id').val('');
+        $('#rsyi-q-number').val( parseInt($('#rsyi-questions-list table tbody tr').length || 0) + 1 );
+        $('#rsyi-q-text').val('');
+        $('#rsyi-q-image-id').val('');
+        $('#rsyi-q-image-preview').hide();
+        $('#rsyi-q-marks').val('1');
+        $('#rsyi-q-form-title').text('<?php echo esc_js( __( 'إضافة سؤال جديد', 'rsyi-sa' ) ); ?>');
+        $('#rsyi-q-msg').text('');
+    }
+
+    $('#rsyi-q-add-btn').on('click', function(){
+        resetForm();
+        $('#rsyi-q-form-wrap').slideDown(200);
+        $('html, body').animate({scrollTop: $('#rsyi-q-form-wrap').offset().top - 40}, 300);
+    });
+
+    $('#rsyi-q-cancel').on('click', function(){
+        $('#rsyi-q-form-wrap').slideUp(200);
+    });
+
+    // ── Edit question ─────────────────────────────────────────────────────────
+    $(document).on('click', '.rsyi-q-edit', function(){
+        var q = $(this).data('q');
+        $('#rsyi-q-id').val(q.id);
+        $('#rsyi-q-number').val(q.question_number);
+        $('#rsyi-q-text').val(q.question_text);
+        $('#rsyi-q-image-id').val(q.image_id || '');
+        $('#rsyi-q-marks').val(q.marks);
+        $('#rsyi-q-form-title').text('<?php echo esc_js( __( 'تعديل السؤال', 'rsyi-sa' ) ); ?> #' + q.question_number);
+        if ( q.image_url ) {
+            $('#rsyi-q-image-thumb').attr('src', q.image_url);
+            $('#rsyi-q-image-preview').show();
+        } else {
+            $('#rsyi-q-image-preview').hide();
+        }
+        $('#rsyi-q-msg').text('');
+        $('#rsyi-q-form-wrap').slideDown(200);
+        $('html, body').animate({scrollTop: $('#rsyi-q-form-wrap').offset().top - 40}, 300);
+    });
+
+    // ── Delete question ───────────────────────────────────────────────────────
+    $(document).on('click', '.rsyi-q-delete', function(){
+        if ( ! confirm('<?php echo esc_js( __( 'حذف هذا السؤال نهائياً؟', 'rsyi-sa' ) ); ?>') ) return;
+        var id = $(this).data('id');
+        $.post( ajaxUrl, { action: 'rsyi_delete_question', question_id: id, _nonce: nonce }, function(res){
+            if ( res.success ) { $('#q-row-' + id).fadeOut(300, function(){ $(this).remove(); }); }
+            else { alert(res.data.message); }
+        });
+    });
+
+    // ── Media uploader ────────────────────────────────────────────────────────
+    $('#rsyi-q-select-image').on('click', function(e){
+        e.preventDefault();
+        if ( mediaFrame ) { mediaFrame.open(); return; }
+        mediaFrame = wp.media({
+            title:    '<?php echo esc_js( __( 'اختر صورة السؤال', 'rsyi-sa' ) ); ?>',
+            button:   { text: '<?php echo esc_js( __( 'اختر الصورة', 'rsyi-sa' ) ); ?>' },
+            multiple: false,
+            library:  { type: 'image' }
+        });
+        mediaFrame.on('select', function(){
+            var att = mediaFrame.state().get('selection').first().toJSON();
+            $('#rsyi-q-image-id').val(att.id);
+            var thumbUrl = att.sizes && att.sizes.medium ? att.sizes.medium.url : att.url;
+            $('#rsyi-q-image-thumb').attr('src', thumbUrl);
+            $('#rsyi-q-image-preview').show();
+        });
+        mediaFrame.open();
+    });
+
+    $('#rsyi-q-remove-image').on('click', function(){
+        $('#rsyi-q-image-id').val('');
+        $('#rsyi-q-image-thumb').attr('src','');
+        $('#rsyi-q-image-preview').hide();
+    });
+
+    // ── Save question ─────────────────────────────────────────────────────────
+    $('#rsyi-q-save').on('click', function(){
+        var text = $.trim($('#rsyi-q-text').val());
+        if ( ! text ) { $('#rsyi-q-msg').css('color','red').text('<?php echo esc_js( __( 'نص السؤال مطلوب.', 'rsyi-sa' ) ); ?>'); return; }
+
+        var data = {
+            action:          'rsyi_save_question',
+            _nonce:          nonce,
+            exam_id:         examId,
+            question_id:     $('#rsyi-q-id').val(),
+            question_number: $('#rsyi-q-number').val(),
+            question_text:   text,
+            image_id:        $('#rsyi-q-image-id').val() || 0,
+            marks:           $('#rsyi-q-marks').val(),
+        };
+
+        var $btn = $(this).prop('disabled', true);
+        $.post( ajaxUrl, data, function(res){
+            $btn.prop('disabled', false);
+            $('#rsyi-q-msg').css('color', res.success ? 'green' : 'red').text(res.data.message);
+            if ( res.success ) {
+                setTimeout(function(){
+                    $('#rsyi-q-form-wrap').slideUp(200);
+                    loadQuestions();
+                }, 600);
+            }
+        });
+    });
+
+});
+</script>
 
 <!-- ── Stats tab ── -->
 <?php elseif ( $active_tab === 'stats' && $selected_exam && current_user_can( 'rsyi_view_exam_stats' ) ) : ?>

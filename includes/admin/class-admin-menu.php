@@ -42,6 +42,9 @@ class Menu {
         add_action( 'wp_ajax_rsyi_get_exam_stats',          [ __CLASS__, 'ajax_get_exam_stats' ] );
         add_action( 'wp_ajax_rsyi_export_exam_results',     [ __CLASS__, 'ajax_export_exam_results' ] );
         add_action( 'wp_ajax_rsyi_delete_material',         [ __CLASS__, 'ajax_delete_material' ] );
+        add_action( 'wp_ajax_rsyi_get_questions',           [ __CLASS__, 'ajax_get_questions' ] );
+        add_action( 'wp_ajax_rsyi_save_question',           [ __CLASS__, 'ajax_save_question' ] );
+        add_action( 'wp_ajax_rsyi_delete_question',         [ __CLASS__, 'ajax_delete_question' ] );
     }
 
     public static function register_menus(): void {
@@ -931,5 +934,90 @@ class Menu {
                 $total
             ),
         ] );
+    }
+
+    // ── Exam Questions AJAX ────────────────────────────────────────────────────
+
+    public static function ajax_get_questions(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_exams' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $exam_id = absint( $_POST['exam_id'] ?? 0 );
+        if ( ! $exam_id ) {
+            wp_send_json_error( [ 'message' => __( 'معرف الامتحان مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+        $questions = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_exam_questions WHERE exam_id = %d ORDER BY question_number ASC",
+            $exam_id
+        ) );
+
+        foreach ( $questions as $q ) {
+            $q->image_url = $q->image_id ? wp_get_attachment_image_url( (int) $q->image_id, 'medium' ) : null;
+        }
+
+        wp_send_json_success( $questions );
+    }
+
+    public static function ajax_save_question(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_exams' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+
+        $exam_id         = absint( $_POST['exam_id'] ?? 0 );
+        $question_id     = absint( $_POST['question_id'] ?? 0 );
+        $question_number = absint( $_POST['question_number'] ?? 1 );
+        $question_text   = sanitize_textarea_field( wp_unslash( $_POST['question_text'] ?? '' ) );
+        $image_id        = absint( $_POST['image_id'] ?? 0 );
+        $marks           = (float) ( $_POST['marks'] ?? 1 );
+
+        if ( ! $exam_id || ! $question_text ) {
+            wp_send_json_error( [ 'message' => __( 'نص السؤال مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        $data = [
+            'exam_id'         => $exam_id,
+            'question_number' => max( 1, $question_number ),
+            'question_text'   => $question_text,
+            'image_id'        => $image_id ?: null,
+            'marks'           => max( 0, $marks ),
+        ];
+        $formats = [ '%d', '%d', '%s', '%d', '%f' ];
+
+        if ( $question_id ) {
+            $wpdb->update(
+                "{$wpdb->prefix}rsyi_exam_questions",
+                $data,
+                [ 'id' => $question_id ],
+                $formats,
+                [ '%d' ]
+            );
+            wp_send_json_success( [ 'message' => __( 'تم تحديث السؤال.', 'rsyi-sa' ), 'id' => $question_id ] );
+        } else {
+            $wpdb->insert( "{$wpdb->prefix}rsyi_exam_questions", $data, $formats );
+            wp_send_json_success( [ 'message' => __( 'تم إضافة السؤال.', 'rsyi-sa' ), 'id' => $wpdb->insert_id ] );
+        }
+    }
+
+    public static function ajax_delete_question(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_exams' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $question_id = absint( $_POST['question_id'] ?? 0 );
+        if ( ! $question_id ) {
+            wp_send_json_error( [ 'message' => __( 'معرف السؤال مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+        $wpdb->delete( "{$wpdb->prefix}rsyi_exam_questions", [ 'id' => $question_id ], [ '%d' ] );
+        wp_send_json_success( [ 'message' => __( 'تم حذف السؤال.', 'rsyi-sa' ) ] );
     }
 }
