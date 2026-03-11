@@ -114,8 +114,10 @@ function rsyi_sa_init(): void {
     $stored_roles_ver = get_option( 'rsyi_sa_roles_version', '0.0.0' );
     if ( version_compare( $stored_roles_ver, RSYI_SA_VERSION, '<' ) ) {
         RSYI_SA\Roles::sync_roles();
-        // Also run DB upgrades in case new tables were added
+        // Upgrade DB tables (adds new columns via dbDelta – safe on existing data)
         RSYI_SA\DB_Installer::create_tables();
+        // Ensure new portal pages exist (idempotent – skips if page already exists)
+        RSYI_SA\DB_Installer::create_portal_pages();
         update_option( RSYI_SA\DB_Installer::DB_VERSION_OPTION, RSYI_SA\DB_Installer::DB_VERSION );
     }
 
