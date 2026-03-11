@@ -21,12 +21,15 @@ class Shortcodes {
 
     public static function init(): void {
         $codes = [
-            'rsyi_portal_dashboard'  => 'render_dashboard',
-            'rsyi_portal_documents'  => 'render_documents',
-            'rsyi_portal_requests'   => 'render_requests',
-            'rsyi_portal_behavior'   => 'render_behavior',
-            'rsyi_portal_register'   => 'render_register',
-            'rsyi_portal_evaluation' => 'render_evaluation',
+            'rsyi_portal_dashboard'          => 'render_dashboard',
+            'rsyi_portal_documents'          => 'render_documents',
+            'rsyi_portal_requests'           => 'render_requests',
+            'rsyi_portal_behavior'           => 'render_behavior',
+            'rsyi_portal_register'           => 'render_register',
+            'rsyi_portal_evaluation'         => 'render_evaluation',
+            'rsyi_portal_materials'          => 'render_materials',
+            'rsyi_portal_grades'             => 'render_grades',
+            'rsyi_portal_attendance_record'  => 'render_attendance_record',
         ];
         foreach ( $codes as $tag => $method ) {
             add_shortcode( $tag, [ __CLASS__, $method ] );
@@ -179,5 +182,67 @@ class Shortcodes {
         return self::render_template( 'evaluation', compact(
             'profile', 'periods', 'evaluatees', 'submitted', 'peer_criteria'
         ) );
+    }
+
+    // ── LMS Shortcodes ────────────────────────────────────────────────────────
+
+    public static function render_materials( $atts ): string {
+        $profile = self::require_student();
+        if ( ! $profile ) return '';
+
+        if ( ! current_user_can( 'rsyi_view_own_materials' ) ) {
+            return '<p>' . esc_html__( 'ليس لديك صلاحية عرض المواد الدراسية.', 'rsyi-sa' ) . '</p>';
+        }
+
+        global $wpdb;
+        $materials = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_study_materials
+             WHERE is_active = 1 AND (cohort_id = %d OR cohort_id IS NULL)
+             ORDER BY subject ASC, created_at DESC",
+            (int) $profile->cohort_id
+        ) );
+
+        return self::render_template( 'materials', compact( 'profile', 'materials' ) );
+    }
+
+    public static function render_grades( $atts ): string {
+        $profile = self::require_student();
+        if ( ! $profile ) return '';
+
+        if ( ! current_user_can( 'rsyi_view_own_exam_results' ) ) {
+            return '<p>' . esc_html__( 'ليس لديك صلاحية عرض الدرجات.', 'rsyi-sa' ) . '</p>';
+        }
+
+        global $wpdb;
+        $results = $wpdb->get_results( $wpdb->prepare(
+            "SELECT r.*, e.title AS exam_title, e.subject, e.exam_date, e.max_score,
+                    e.passing_score, e.exam_type
+             FROM {$wpdb->prefix}rsyi_exam_results r
+             JOIN {$wpdb->prefix}rsyi_exams e ON e.id = r.exam_id
+             WHERE r.student_id = %d
+             ORDER BY e.exam_date DESC, e.created_at DESC",
+            (int) $profile->id
+        ) );
+
+        return self::render_template( 'grades', compact( 'profile', 'results' ) );
+    }
+
+    public static function render_attendance_record( $atts ): string {
+        $profile = self::require_student();
+        if ( ! $profile ) return '';
+
+        if ( ! current_user_can( 'rsyi_view_own_attendance' ) ) {
+            return '<p>' . esc_html__( 'ليس لديك صلاحية عرض سجل الحضور.', 'rsyi-sa' ) . '</p>';
+        }
+
+        global $wpdb;
+        $records = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_attendance
+             WHERE student_id = %d
+             ORDER BY session_date DESC, created_at DESC",
+            (int) $profile->id
+        ) );
+
+        return self::render_template( 'attendance-record', compact( 'profile', 'records' ) );
     }
 }

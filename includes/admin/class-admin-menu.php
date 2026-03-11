@@ -37,6 +37,11 @@ class Menu {
         add_action( 'wp_ajax_rsyi_upload_material',         [ __CLASS__, 'ajax_upload_material' ] );
         add_action( 'wp_ajax_rsyi_create_exam',             [ __CLASS__, 'ajax_create_exam' ] );
         add_action( 'wp_ajax_rsyi_save_exam_results',       [ __CLASS__, 'ajax_save_exam_results' ] );
+        add_action( 'wp_ajax_rsyi_delete_exam',             [ __CLASS__, 'ajax_delete_exam' ] );
+        add_action( 'wp_ajax_rsyi_update_exam',             [ __CLASS__, 'ajax_update_exam' ] );
+        add_action( 'wp_ajax_rsyi_get_exam_stats',          [ __CLASS__, 'ajax_get_exam_stats' ] );
+        add_action( 'wp_ajax_rsyi_export_exam_results',     [ __CLASS__, 'ajax_export_exam_results' ] );
+        add_action( 'wp_ajax_rsyi_delete_material',         [ __CLASS__, 'ajax_delete_material' ] );
     }
 
     public static function register_menus(): void {
@@ -59,6 +64,7 @@ class Menu {
             [ 'rsyi-attendance',   __( 'Attendance', 'rsyi-sa' ),          'rsyi_manage_attendance',    [ __CLASS__, 'page_attendance' ] ],
             [ 'rsyi-materials',    __( 'Study Materials', 'rsyi-sa' ),     'rsyi_upload_study_materials', [ __CLASS__, 'page_materials' ] ],
             [ 'rsyi-exams',        __( 'Exams', 'rsyi-sa' ),               'rsyi_manage_exams',         [ __CLASS__, 'page_exams' ] ],
+            [ 'rsyi-grade-report', __( 'Grade Report', 'rsyi-sa' ),        'rsyi_view_exam_stats',      [ __CLASS__, 'page_grade_report' ] ],
             [ 'rsyi-exit',         __( 'Exit Permits', 'rsyi-sa' ),        'rsyi_view_all_requests',    [ __CLASS__, 'page_exit_permits' ] ],
             [ 'rsyi-overnight',    __( 'Overnight Permits', 'rsyi-sa' ),   'rsyi_view_all_requests',    [ __CLASS__, 'page_overnight_permits' ] ],
             [ 'rsyi-violations',   __( 'Violations', 'rsyi-sa' ),          'rsyi_view_all_violations',  [ __CLASS__, 'page_violations' ] ],
@@ -166,6 +172,10 @@ class Menu {
 
     public static function page_exams(): void {
         self::render( 'exams' );
+    }
+
+    public static function page_grade_report(): void {
+        self::render( 'grade-report' );
     }
 
     public static function page_roles(): void {
@@ -526,13 +536,16 @@ class Menu {
             wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
         }
 
-        $title        = sanitize_text_field( wp_unslash( $_POST['title']       ?? '' ) );
-        $subject      = sanitize_text_field( wp_unslash( $_POST['subject']     ?? '' ) );
-        $cohort_id    = absint( $_POST['cohort_id'] ?? 0 );
-        $exam_date    = sanitize_text_field( wp_unslash( $_POST['exam_date']   ?? '' ) );
-        $duration_min = absint( $_POST['duration_min'] ?? 0 );
-        $max_score    = absint( $_POST['max_score']    ?? 100 );
-        $desc         = sanitize_textarea_field( wp_unslash( $_POST['description'] ?? '' ) );
+        $title         = sanitize_text_field( wp_unslash( $_POST['title']       ?? '' ) );
+        $subject       = sanitize_text_field( wp_unslash( $_POST['subject']     ?? '' ) );
+        $cohort_id     = absint( $_POST['cohort_id'] ?? 0 );
+        $exam_date     = sanitize_text_field( wp_unslash( $_POST['exam_date']   ?? '' ) );
+        $duration_min  = absint( $_POST['duration_min'] ?? 0 );
+        $max_score     = absint( $_POST['max_score']    ?? 100 );
+        $passing_score = ( isset( $_POST['passing_score'] ) && $_POST['passing_score'] !== '' ) ? absint( $_POST['passing_score'] ) : null;
+        $exam_type     = sanitize_key( $_POST['exam_type'] ?? 'written' );
+        $status        = sanitize_key( $_POST['status']    ?? 'published' );
+        $desc          = sanitize_textarea_field( wp_unslash( $_POST['description'] ?? '' ) );
 
         if ( empty( $title ) ) {
             wp_send_json_error( [ 'message' => __( 'عنوان الامتحان مطلوب.', 'rsyi-sa' ) ] );
@@ -540,15 +553,18 @@ class Menu {
 
         global $wpdb;
         $wpdb->insert( $wpdb->prefix . 'rsyi_exams', [
-            'cohort_id'    => $cohort_id ?: null,
-            'title'        => $title,
-            'description'  => $desc,
-            'subject'      => $subject ?: null,
-            'exam_date'    => $exam_date ?: null,
-            'duration_min' => $duration_min ?: null,
-            'max_score'    => $max_score ?: 100,
-            'is_active'    => 1,
-            'created_by'   => get_current_user_id(),
+            'cohort_id'     => $cohort_id ?: null,
+            'title'         => $title,
+            'description'   => $desc,
+            'subject'       => $subject ?: null,
+            'exam_date'     => $exam_date ?: null,
+            'duration_min'  => $duration_min ?: null,
+            'max_score'     => $max_score ?: 100,
+            'passing_score' => $passing_score,
+            'exam_type'     => $exam_type,
+            'status'        => $status,
+            'is_active'     => 1,
+            'created_by'    => get_current_user_id(),
         ] );
 
         \RSYI_SA\Audit_Log::log( 'exam', $wpdb->insert_id, 'create', [
@@ -581,6 +597,16 @@ class Menu {
         $current_by = get_current_user_id();
         $saved      = 0;
 
+        // Get passing threshold for this exam
+        $exam = $wpdb->get_row( $wpdb->prepare(
+            "SELECT max_score, passing_score FROM {$wpdb->prefix}rsyi_exams WHERE id = %d",
+            $exam_id
+        ) );
+        $max_score    = $exam ? (int) $exam->max_score : 100;
+        $passing_thrs = ( $exam && $exam->passing_score !== null )
+                        ? (int) $exam->passing_score
+                        : (int) round( $max_score * 0.5 );
+
         foreach ( $student_ids as $student_id ) {
             $score_raw = $_POST[ "score_{$student_id}" ] ?? '';
             if ( $score_raw === '' ) continue; // Skip empty entries
@@ -588,6 +614,13 @@ class Menu {
             $score = absint( $score_raw );
             $grade = sanitize_text_field( wp_unslash( $_POST[ "grade_{$student_id}" ] ?? '' ) );
             $notes = sanitize_text_field( wp_unslash( $_POST[ "notes_{$student_id}" ] ?? '' ) );
+
+            // Auto-calculate grade letter if empty
+            if ( empty( $grade ) ) {
+                $pct   = $max_score > 0 ? $score / $max_score * 100 : 0;
+                $grade = $pct >= 90 ? 'A+' : ( $pct >= 80 ? 'A' : ( $pct >= 70 ? 'B' : ( $pct >= 60 ? 'C' : ( $pct >= 50 ? 'D' : 'F' ) ) ) );
+            }
+            $is_passing = $score >= $passing_thrs ? 1 : 0;
 
             $existing = $wpdb->get_var( $wpdb->prepare(
                 "SELECT id FROM {$table} WHERE exam_id = %d AND student_id = %d LIMIT 1",
@@ -597,7 +630,7 @@ class Menu {
             if ( $existing ) {
                 $wpdb->update(
                     $table,
-                    [ 'score' => $score, 'grade' => $grade, 'notes' => $notes, 'recorded_by' => $current_by ],
+                    [ 'score' => $score, 'grade' => $grade, 'notes' => $notes, 'is_passing' => $is_passing, 'recorded_by' => $current_by ],
                     [ 'id' => $existing ]
                 );
             } else {
@@ -607,6 +640,7 @@ class Menu {
                     'score'       => $score,
                     'grade'       => $grade,
                     'notes'       => $notes,
+                    'is_passing'  => $is_passing,
                     'recorded_by' => $current_by,
                 ] );
             }
@@ -616,6 +650,241 @@ class Menu {
         wp_send_json_success( [
             'message' => sprintf( __( 'تم حفظ نتائج %d طالب.', 'rsyi-sa' ), $saved ),
         ] );
+    }
+
+    // ── Exam Management AJAX ───────────────────────────────────────────────────
+
+    public static function ajax_delete_exam(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_delete_exam' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $exam_id = absint( $_POST['exam_id'] ?? 0 );
+        if ( ! $exam_id ) {
+            wp_send_json_error( [ 'message' => __( 'معرف الامتحان مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+        $wpdb->delete( $wpdb->prefix . 'rsyi_exam_results', [ 'exam_id' => $exam_id ] );
+        $wpdb->delete( $wpdb->prefix . 'rsyi_exams', [ 'id' => $exam_id ] );
+
+        \RSYI_SA\Audit_Log::log( 'exam', $exam_id, 'delete', [] );
+
+        wp_send_json_success( [ 'message' => __( 'تم حذف الامتحان ونتائجه.', 'rsyi-sa' ) ] );
+    }
+
+    public static function ajax_update_exam(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_edit_exam' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $exam_id = absint( $_POST['exam_id'] ?? 0 );
+        if ( ! $exam_id ) {
+            wp_send_json_error( [ 'message' => __( 'معرف الامتحان مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        $title         = sanitize_text_field( wp_unslash( $_POST['title']       ?? '' ) );
+        $subject       = sanitize_text_field( wp_unslash( $_POST['subject']     ?? '' ) );
+        $cohort_id     = absint( $_POST['cohort_id'] ?? 0 );
+        $exam_date     = sanitize_text_field( wp_unslash( $_POST['exam_date']   ?? '' ) );
+        $duration_min  = absint( $_POST['duration_min'] ?? 0 );
+        $max_score     = absint( $_POST['max_score']    ?? 100 );
+        $passing_score = $_POST['passing_score'] !== '' ? absint( $_POST['passing_score'] ) : null;
+        $exam_type     = sanitize_key( $_POST['exam_type']  ?? 'written' );
+        $status        = sanitize_key( $_POST['status']     ?? 'published' );
+        $desc          = sanitize_textarea_field( wp_unslash( $_POST['description'] ?? '' ) );
+
+        if ( empty( $title ) ) {
+            wp_send_json_error( [ 'message' => __( 'عنوان الامتحان مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+        $wpdb->update(
+            $wpdb->prefix . 'rsyi_exams',
+            [
+                'title'         => $title,
+                'subject'       => $subject ?: null,
+                'cohort_id'     => $cohort_id ?: null,
+                'exam_date'     => $exam_date ?: null,
+                'duration_min'  => $duration_min ?: null,
+                'max_score'     => $max_score ?: 100,
+                'passing_score' => $passing_score,
+                'exam_type'     => $exam_type,
+                'status'        => $status,
+                'description'   => $desc,
+            ],
+            [ 'id' => $exam_id ]
+        );
+
+        \RSYI_SA\Audit_Log::log( 'exam', $exam_id, 'update', [ 'title' => $title ] );
+
+        wp_send_json_success( [ 'message' => __( 'تم تحديث الامتحان بنجاح.', 'rsyi-sa' ) ] );
+    }
+
+    public static function ajax_get_exam_stats(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_view_exam_stats' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $exam_id = absint( $_POST['exam_id'] ?? 0 );
+        if ( ! $exam_id ) {
+            wp_send_json_error( [ 'message' => __( 'معرف الامتحان مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+        $exam = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_exams WHERE id = %d",
+            $exam_id
+        ) );
+
+        if ( ! $exam ) {
+            wp_send_json_error( [ 'message' => __( 'الامتحان غير موجود.', 'rsyi-sa' ) ] );
+        }
+
+        $results = $wpdb->get_results( $wpdb->prepare(
+            "SELECT r.score, r.grade, sp.arabic_full_name, sp.english_full_name
+             FROM {$wpdb->prefix}rsyi_exam_results r
+             JOIN {$wpdb->prefix}rsyi_student_profiles sp ON sp.id = r.student_id
+             WHERE r.exam_id = %d
+             ORDER BY r.score DESC",
+            $exam_id
+        ) );
+
+        $max      = (int) $exam->max_score ?: 100;
+        $passing  = isset( $exam->passing_score ) && $exam->passing_score !== null
+                    ? (int) $exam->passing_score
+                    : (int) round( $max * 0.5 );
+
+        $count    = count( $results );
+        $passed   = 0;
+        $scores   = [];
+        $dist     = [ 'A+' => 0, 'A' => 0, 'B' => 0, 'C' => 0, 'D' => 0, 'F' => 0 ];
+        $ranked   = [];
+
+        foreach ( $results as $r ) {
+            $s    = (int) $r->score;
+            $pct  = $max > 0 ? $s / $max * 100 : 0;
+            if ( $s >= $passing ) $passed++;
+            $scores[] = $s;
+            $letter = $pct >= 90 ? 'A+' : ( $pct >= 80 ? 'A' : ( $pct >= 70 ? 'B' : ( $pct >= 60 ? 'C' : ( $pct >= 50 ? 'D' : 'F' ) ) ) );
+            $dist[ $letter ]++;
+            $ranked[] = [
+                'name'   => $r->arabic_full_name ?: $r->english_full_name,
+                'score'  => $s,
+                'pct'    => round( $pct, 1 ),
+                'grade'  => $letter,
+            ];
+        }
+
+        $avg       = $count > 0 ? round( array_sum( $scores ) / $count, 1 ) : 0;
+        $pass_pct  = $count > 0 ? round( $passed / $count * 100, 1 ) : 0;
+
+        wp_send_json_success( [
+            'exam'      => [ 'title' => $exam->title, 'max_score' => $max, 'passing_score' => $passing ],
+            'count'     => $count,
+            'avg'       => $avg,
+            'max_val'   => $count > 0 ? max( $scores ) : 0,
+            'min_val'   => $count > 0 ? min( $scores ) : 0,
+            'passed'    => $passed,
+            'pass_pct'  => $pass_pct,
+            'dist'      => $dist,
+            'ranked'    => $ranked,
+        ] );
+    }
+
+    public static function ajax_export_exam_results(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_export_exam_results' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $exam_id = absint( $_POST['exam_id'] ?? 0 );
+        if ( ! $exam_id ) {
+            wp_send_json_error( [ 'message' => __( 'معرف الامتحان مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+        $exam = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_exams WHERE id = %d",
+            $exam_id
+        ) );
+
+        $results = $wpdb->get_results( $wpdb->prepare(
+            "SELECT sp.arabic_full_name, sp.english_full_name, r.score, r.grade, r.notes, r.is_passing
+             FROM {$wpdb->prefix}rsyi_exam_results r
+             JOIN {$wpdb->prefix}rsyi_student_profiles sp ON sp.id = r.student_id
+             WHERE r.exam_id = %d
+             ORDER BY r.score DESC",
+            $exam_id
+        ) );
+
+        $rows = [];
+        $rows[] = [ 'الاسم بالعربي', 'الاسم بالإنجليزي', 'الدرجة', 'الدرجة القصوى', 'التقدير', 'النجاح/الرسوب', 'ملاحظات' ];
+        foreach ( $results as $r ) {
+            $rows[] = [
+                $r->arabic_full_name,
+                $r->english_full_name,
+                $r->score,
+                $exam ? $exam->max_score : '',
+                $r->grade,
+                $r->is_passing ? 'ناجح' : 'راسب',
+                $r->notes,
+            ];
+        }
+
+        $csv = '';
+        foreach ( $rows as $row ) {
+            $csv .= implode( ',', array_map( fn( $v ) => '"' . str_replace( '"', '""', $v ) . '"', $row ) ) . "\n";
+        }
+
+        wp_send_json_success( [
+            'csv'      => $csv,
+            'filename' => sanitize_file_name( ( $exam ? $exam->title : 'exam' ) . '-results.csv' ),
+        ] );
+    }
+
+    // ── Study Materials AJAX (delete) ──────────────────────────────────────────
+
+    public static function ajax_delete_material(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'rsyi_upload_study_materials' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $material_id = absint( $_POST['material_id'] ?? 0 );
+        if ( ! $material_id ) {
+            wp_send_json_error( [ 'message' => __( 'معرف المادة مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+        $material = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_study_materials WHERE id = %d",
+            $material_id
+        ) );
+
+        if ( ! $material ) {
+            wp_send_json_error( [ 'message' => __( 'المادة غير موجودة.', 'rsyi-sa' ) ] );
+        }
+
+        // Delete the physical file
+        $file_path = RSYI_SA_UPLOAD_DIR . '/' . $material->file_path;
+        if ( file_exists( $file_path ) ) {
+            @unlink( $file_path ); // phpcs:ignore
+        }
+
+        $wpdb->delete( $wpdb->prefix . 'rsyi_study_materials', [ 'id' => $material_id ] );
+
+        \RSYI_SA\Audit_Log::log( 'study_material', $material_id, 'delete', [ 'title' => $material->title ] );
+
+        wp_send_json_success( [ 'message' => __( 'تم حذف المادة بنجاح.', 'rsyi-sa' ) ] );
     }
 
     public static function ajax_reseed_violation_types(): void {

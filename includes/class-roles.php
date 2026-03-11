@@ -64,6 +64,11 @@ class Roles {
             'rsyi_manage_exams'              => true,
             'rsyi_manage_settings'           => true,
             'rsyi_manage_roles'              => true,
+            // LMS exam management (extended)
+            'rsyi_edit_exam'                 => true,
+            'rsyi_delete_exam'               => true,
+            'rsyi_view_exam_stats'           => true,
+            'rsyi_export_exam_results'       => true,
         ];
     }
 
@@ -209,14 +214,16 @@ class Roles {
                 'label' => 'Senior Naval Trainer / كبير المدربين البحريين',
                 'caps'  => [
                     'rsyi_view_all_students'       => true,
-                    // Attendance / Materials / Exams – core features for trainers
                     'rsyi_manage_attendance'       => true,
                     'rsyi_upload_study_materials'  => true,
                     'rsyi_manage_exams'            => true,
+                    'rsyi_edit_exam'               => true,
+                    'rsyi_delete_exam'             => true,
+                    'rsyi_view_exam_stats'         => true,
+                    'rsyi_export_exam_results'     => true,
                 ],
             ],
 
-            // ── NEW: المدرب البحري ────────────────────────────────────
             'rsyi_naval_trainer' => [
                 'label' => 'Naval Trainer / المدرب البحري',
                 'caps'  => [
@@ -224,10 +231,13 @@ class Roles {
                     'rsyi_manage_attendance'       => true,
                     'rsyi_upload_study_materials'  => true,
                     'rsyi_manage_exams'            => true,
+                    'rsyi_edit_exam'               => true,
+                    'rsyi_delete_exam'             => true,
+                    'rsyi_view_exam_stats'         => true,
+                    'rsyi_export_exam_results'     => true,
                 ],
             ],
 
-            // ── NEW: المحاضر التحضيري ─────────────────────────────────
             'rsyi_preparatory_lecturer' => [
                 'label' => 'Preparatory Lecturer / المحاضر التحضيري',
                 'caps'  => [
@@ -235,20 +245,27 @@ class Roles {
                     'rsyi_manage_attendance'       => true,
                     'rsyi_upload_study_materials'  => true,
                     'rsyi_manage_exams'            => true,
+                    'rsyi_edit_exam'               => true,
+                    'rsyi_delete_exam'             => true,
+                    'rsyi_view_exam_stats'         => true,
+                    'rsyi_export_exam_results'     => true,
                 ],
             ],
 
             'rsyi_student' => [
                 'label' => 'Student / طالب',
                 'caps'  => [
-                    'rsyi_view_own_profile'        => true,
-                    'rsyi_upload_own_documents'    => true,
-                    'rsyi_submit_exit_permit'      => true,
-                    'rsyi_submit_overnight_permit' => true,
-                    'rsyi_view_own_violations'     => true,
-                    'rsyi_acknowledge_warning'     => true,
-                    // Evaluations
-                    'rsyi_submit_peer_evaluation'  => true,
+                    'rsyi_view_own_profile'          => true,
+                    'rsyi_upload_own_documents'      => true,
+                    'rsyi_submit_exit_permit'        => true,
+                    'rsyi_submit_overnight_permit'   => true,
+                    'rsyi_view_own_violations'       => true,
+                    'rsyi_acknowledge_warning'       => true,
+                    'rsyi_submit_peer_evaluation'    => true,
+                    // LMS
+                    'rsyi_view_own_materials'        => true,
+                    'rsyi_view_own_exam_results'     => true,
+                    'rsyi_view_own_attendance'       => true,
                 ],
             ],
         ];

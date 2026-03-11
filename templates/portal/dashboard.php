@@ -15,10 +15,13 @@ $status_labels = [
 
 // Portal page URLs
 $page_links = [
-    'documents'  => get_option( 'rsyi_page_documents' )  ? get_permalink( get_option( 'rsyi_page_documents' ) )  : '',
-    'requests'   => get_option( 'rsyi_page_requests' )   ? get_permalink( get_option( 'rsyi_page_requests' ) )   : '',
-    'behavior'   => get_option( 'rsyi_page_behavior' )   ? get_permalink( get_option( 'rsyi_page_behavior' ) )   : '',
-    'evaluation' => get_option( 'rsyi_page_evaluation' ) ? get_permalink( get_option( 'rsyi_page_evaluation' ) ) : '',
+    'documents'   => get_option( 'rsyi_page_documents' )        ? get_permalink( get_option( 'rsyi_page_documents' ) )        : '',
+    'requests'    => get_option( 'rsyi_page_requests' )         ? get_permalink( get_option( 'rsyi_page_requests' ) )         : '',
+    'behavior'    => get_option( 'rsyi_page_behavior' )         ? get_permalink( get_option( 'rsyi_page_behavior' ) )         : '',
+    'evaluation'  => get_option( 'rsyi_page_evaluation' )       ? get_permalink( get_option( 'rsyi_page_evaluation' ) )       : '',
+    'materials'   => get_option( 'rsyi_page_materials' )        ? get_permalink( get_option( 'rsyi_page_materials' ) )        : '',
+    'grades'      => get_option( 'rsyi_page_grades' )           ? get_permalink( get_option( 'rsyi_page_grades' ) )           : '',
+    'attendance'  => get_option( 'rsyi_page_attendance_record' )? get_permalink( get_option( 'rsyi_page_attendance_record' ) ): '',
 ];
 ?>
 <div class="rsyi-portal" dir="ltr" style="font-family:sans-serif; max-width:860px; margin:0 auto;">
@@ -85,8 +88,11 @@ $page_links = [
         $nav_items = [
             [ 'icon' => '📄', 'label' => __( 'My Documents', 'rsyi-sa' ),          'url' => $page_links['documents'],  'desc' => __( 'Upload & track required documents', 'rsyi-sa' ) ],
             [ 'icon' => '📝', 'label' => __( 'Permits & Requests', 'rsyi-sa' ),     'url' => $page_links['requests'],   'desc' => __( 'Exit & overnight permits', 'rsyi-sa' ) ],
-            [ 'icon' => '📊', 'label' => __( 'Behavior Record', 'rsyi-sa' ),         'url' => $page_links['behavior'],   'desc' => __( 'View your behavior points', 'rsyi-sa' ) ],
-            [ 'icon' => '⭐', 'label' => __( 'Peer Evaluation', 'rsyi-sa' ),         'url' => $page_links['evaluation'], 'desc' => __( 'Rate your cohort members', 'rsyi-sa' ) ],
+            [ 'icon' => '📊', 'label' => __( 'Behavior Record', 'rsyi-sa' ),        'url' => $page_links['behavior'],   'desc' => __( 'View your behavior points', 'rsyi-sa' ) ],
+            [ 'icon' => '⭐', 'label' => __( 'Peer Evaluation', 'rsyi-sa' ),        'url' => $page_links['evaluation'], 'desc' => __( 'Rate your cohort members', 'rsyi-sa' ) ],
+            [ 'icon' => '📚', 'label' => __( 'Study Materials', 'rsyi-sa' ),        'url' => $page_links['materials'],  'desc' => __( 'Download course materials', 'rsyi-sa' ) ],
+            [ 'icon' => '🏅', 'label' => __( 'My Grades', 'rsyi-sa' ),             'url' => $page_links['grades'],     'desc' => __( 'View exam results & grades', 'rsyi-sa' ) ],
+            [ 'icon' => '📅', 'label' => __( 'Attendance Record', 'rsyi-sa' ),      'url' => $page_links['attendance'], 'desc' => __( 'Your attendance history', 'rsyi-sa' ) ],
         ];
         foreach ( $nav_items as $item ) :
             if ( ! $item['url'] ) continue;

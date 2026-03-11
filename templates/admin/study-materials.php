@@ -89,6 +89,7 @@ $materials = $wpdb->get_results(
             <th><?php esc_html_e( 'الرافع', 'rsyi-sa' ); ?></th>
             <th><?php esc_html_e( 'التاريخ', 'rsyi-sa' ); ?></th>
             <th><?php esc_html_e( 'الحالة', 'rsyi-sa' ); ?></th>
+            <th><?php esc_html_e( 'إجراءات', 'rsyi-sa' ); ?></th>
         </tr>
     </thead>
     <tbody>
@@ -103,6 +104,13 @@ $materials = $wpdb->get_results(
             <span style="color:<?php echo $m->is_active ? 'green' : '#999'; ?>; font-weight:600;">
                 <?php echo $m->is_active ? esc_html__( 'نشط', 'rsyi-sa' ) : esc_html__( 'معطل', 'rsyi-sa' ); ?>
             </span>
+        </td>
+        <td>
+            <button class="button button-small rsyi-delete-material"
+                    data-material-id="<?php echo esc_attr( $m->id ); ?>"
+                    style="color:#a00; border-color:#a00;">
+                <?php esc_html_e( 'حذف', 'rsyi-sa' ); ?>
+            </button>
         </td>
     </tr>
     <?php endforeach; ?>
@@ -129,6 +137,16 @@ jQuery(function($){
                 $msg.css('color', res.success ? 'green' : 'red').text(res.data.message);
                 if(res.success){ location.reload(); }
             }
+        });
+    });
+
+    $(document).on('click', '.rsyi-delete-material', function(){
+        var id = $(this).data('material-id');
+        if ( ! confirm('<?php echo esc_js( __( 'سيتم حذف المادة والملف المرفق. هل أنت متأكد؟', 'rsyi-sa' ) ); ?>') ) return;
+        var $row = $('#material-row-' + id);
+        $.post(rsyiSA.ajaxUrl, { action: 'rsyi_delete_material', material_id: id, _nonce: rsyiSA.nonce }, function(res){
+            if(res.success){ $row.fadeOut(400, function(){ $row.remove(); }); }
+            else { alert(res.data.message); }
         });
     });
 });

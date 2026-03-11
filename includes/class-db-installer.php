@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.2.0';
+    const DB_VERSION        = '1.3.0';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -378,22 +378,26 @@ class DB_Installer {
 
             // ── Exams ────────────────────────────────────────────────
             "CREATE TABLE {$p}rsyi_exams (
-                id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                cohort_id    BIGINT UNSIGNED DEFAULT NULL,
-                title        VARCHAR(255)    NOT NULL,
-                description  TEXT            DEFAULT NULL,
-                subject      VARCHAR(120)    DEFAULT NULL,
-                exam_date    DATE            DEFAULT NULL,
-                duration_min SMALLINT UNSIGNED DEFAULT NULL,
-                max_score    SMALLINT UNSIGNED NOT NULL DEFAULT 100,
-                is_active    TINYINT(1)      NOT NULL DEFAULT 1,
-                created_by   BIGINT UNSIGNED NOT NULL,
-                created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                id            BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+                cohort_id     BIGINT UNSIGNED  DEFAULT NULL,
+                title         VARCHAR(255)     NOT NULL,
+                description   TEXT             DEFAULT NULL,
+                subject       VARCHAR(120)     DEFAULT NULL,
+                exam_type     VARCHAR(30)      NOT NULL DEFAULT 'written',
+                exam_date     DATE             DEFAULT NULL,
+                duration_min  SMALLINT UNSIGNED DEFAULT NULL,
+                max_score     SMALLINT UNSIGNED NOT NULL DEFAULT 100,
+                passing_score SMALLINT UNSIGNED DEFAULT NULL,
+                status        VARCHAR(20)      NOT NULL DEFAULT 'published',
+                is_active     TINYINT(1)       NOT NULL DEFAULT 1,
+                created_by    BIGINT UNSIGNED  NOT NULL,
+                created_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
                 KEY idx_exam_cohort  (cohort_id),
                 KEY idx_exam_date    (exam_date),
-                KEY idx_exam_active  (is_active)
+                KEY idx_exam_active  (is_active),
+                KEY idx_exam_status  (status)
             ) $charset;",
 
             // ── Exam Results ─────────────────────────────────────────
@@ -403,6 +407,7 @@ class DB_Installer {
                 student_id  BIGINT UNSIGNED NOT NULL,
                 score       SMALLINT UNSIGNED DEFAULT NULL,
                 grade       VARCHAR(10)     DEFAULT NULL,
+                is_passing  TINYINT(1)      DEFAULT NULL,
                 notes       TEXT            DEFAULT NULL,
                 recorded_by BIGINT UNSIGNED NOT NULL,
                 created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -503,6 +508,24 @@ class DB_Installer {
                 'title'     => 'Cohort Peer Evaluation',
                 'shortcode' => '[rsyi_portal_evaluation]',
                 'option'    => 'rsyi_page_evaluation',
+            ],
+            [
+                'slug'      => 'student-materials',
+                'title'     => 'Study Materials',
+                'shortcode' => '[rsyi_portal_materials]',
+                'option'    => 'rsyi_page_materials',
+            ],
+            [
+                'slug'      => 'student-grades',
+                'title'     => 'My Grades',
+                'shortcode' => '[rsyi_portal_grades]',
+                'option'    => 'rsyi_page_grades',
+            ],
+            [
+                'slug'      => 'student-attendance',
+                'title'     => 'My Attendance Record',
+                'shortcode' => '[rsyi_portal_attendance_record]',
+                'option'    => 'rsyi_page_attendance_record',
             ],
         ];
 
