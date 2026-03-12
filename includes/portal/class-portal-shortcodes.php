@@ -266,14 +266,28 @@ class Shortcodes {
         global $wpdb;
         $now = current_time( 'mysql' );
 
-        // Get exams for this student's cohort (published + active)
-        $exams = $wpdb->get_results( $wpdb->prepare(
-            "SELECT e.*
-             FROM {$wpdb->prefix}rsyi_exams e
-             WHERE e.cohort_id = %d AND e.is_active = 1 AND e.status = 'published'
-             ORDER BY e.starts_at DESC",
-            (int) $profile->cohort_id
-        ) );
+        // Get exams for this student's cohort OR exams with no cohort (global).
+        // Also handles students with no cohort assigned (cohort_id = 0).
+        $student_cohort = (int) ( $profile->cohort_id ?? 0 );
+        if ( $student_cohort ) {
+            $exams = $wpdb->get_results( $wpdb->prepare(
+                "SELECT e.*
+                 FROM {$wpdb->prefix}rsyi_exams e
+                 WHERE e.is_active = 1 AND e.status = 'published'
+                   AND ( e.cohort_id = %d OR e.cohort_id IS NULL )
+                 ORDER BY e.created_at DESC",
+                $student_cohort
+            ) );
+        } else {
+            // Student has no cohort — show only global exams (no cohort restriction)
+            $exams = $wpdb->get_results(
+                "SELECT e.*
+                 FROM {$wpdb->prefix}rsyi_exams e
+                 WHERE e.is_active = 1 AND e.status = 'published'
+                   AND ( e.cohort_id IS NULL OR e.cohort_id = 0 )
+                 ORDER BY e.created_at DESC"
+            );
+        }
 
         // Get this student's results
         $results_raw = $wpdb->get_results( $wpdb->prepare(
