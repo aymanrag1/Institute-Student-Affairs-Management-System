@@ -74,6 +74,13 @@ function rsyi_dt_local( ?string $dt ): string {
 }
 ?>
 <h1 class="wp-heading-inline"><?php esc_html_e( 'الامتحانات', 'rsyi-sa' ); ?></h1>
+<?php if ( current_user_can( 'manage_options' ) ) : ?>
+<button type="button" id="rsyi-db-migrate-btn" class="page-title-action"
+        style="margin-right:10px; background:#d63638; color:#fff; border-color:#d63638;">
+    🔧 <?php esc_html_e( 'إصلاح قاعدة البيانات', 'rsyi-sa' ); ?>
+</button>
+<span id="rsyi-db-migrate-msg" style="margin-right:8px; font-weight:600;"></span>
+<?php endif; ?>
 <hr class="wp-header-end">
 
 <!-- Tabs -->
@@ -814,6 +821,22 @@ $submissions_count = (int) $wpdb->get_var( $wpdb->prepare(
 
 <script>
 jQuery(function($){
+
+    // ── DB Migration (manual fix button) ──────────────────────────────────────
+    $('#rsyi-db-migrate-btn').on('click', function(){
+        var $btn = $(this).prop('disabled', true).text('⏳ ...');
+        var $msg = $('#rsyi-db-migrate-msg');
+        $.post(rsyiSA.ajaxUrl, {
+            action: 'rsyi_run_db_migration',
+            _nonce: rsyiSA.nonce
+        }, function(res){
+            $btn.prop('disabled', false).html('🔧 <?php echo esc_js( __( 'إصلاح قاعدة البيانات', 'rsyi-sa' ) ); ?>');
+            $msg.css('color', res.success ? 'green' : 'red').text(res.data.message);
+        }).fail(function(){
+            $btn.prop('disabled', false).html('🔧 <?php echo esc_js( __( 'إصلاح قاعدة البيانات', 'rsyi-sa' ) ); ?>');
+            $msg.css('color','red').text('<?php echo esc_js( __( 'خطأ في الاتصال', 'rsyi-sa' ) ); ?>');
+        });
+    });
 
     // ── Create exam ────────────────────────────────────────────────────────────
     $('#rsyi-create-exam-form').on('submit', function(e){

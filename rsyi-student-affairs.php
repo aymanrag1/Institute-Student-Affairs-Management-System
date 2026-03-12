@@ -114,13 +114,19 @@ function rsyi_sa_init(): void {
     $stored_roles_ver = get_option( 'rsyi_sa_roles_version', '0.0.0' );
     if ( version_compare( $stored_roles_ver, RSYI_SA_VERSION, '<' ) ) {
         RSYI_SA\Roles::sync_roles();
-        // Upgrade DB tables (adds new columns via dbDelta – safe on existing data)
-        RSYI_SA\DB_Installer::create_tables();
-        update_option( RSYI_SA\DB_Installer::DB_VERSION_OPTION, RSYI_SA\DB_Installer::DB_VERSION );
         // Portal page creation uses wp_insert_post() which must NOT be called during
         // plugins_loaded (fires save_post and other actions before WP is fully ready).
         // Defer to init where post functions are fully safe to call.
         add_action( 'init', [ 'RSYI_SA\\DB_Installer', 'create_portal_pages' ], 1 );
+    }
+
+    // ── DB schema upgrade (independent of role sync) ──────────────────────────
+    // Uses its own version key so it runs whenever DB_VERSION advances,
+    // even if rsyi_sa_roles_version was already up-to-date.
+    $stored_db_ver = get_option( RSYI_SA\DB_Installer::DB_VERSION_OPTION, '0.0.0' );
+    if ( version_compare( $stored_db_ver, RSYI_SA\DB_Installer::DB_VERSION, '<' ) ) {
+        RSYI_SA\DB_Installer::create_tables();
+        update_option( RSYI_SA\DB_Installer::DB_VERSION_OPTION, RSYI_SA\DB_Installer::DB_VERSION );
     }
 
     // Secure download endpoint (registered before any output)

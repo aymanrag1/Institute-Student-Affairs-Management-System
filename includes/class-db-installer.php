@@ -42,6 +42,55 @@ class DB_Installer {
         foreach ( $sqls as $sql ) {
             dbDelta( $sql );
         }
+
+        // Explicit column migrations — dbDelta does not reliably ADD columns
+        // to existing tables, so we do it manually with existence checks.
+        self::run_column_migrations();
+    }
+
+    /**
+     * Explicit ALTER TABLE migrations for new columns added to existing tables.
+     * Each entry is idempotent: checks SHOW COLUMNS before running ALTER.
+     */
+    private static function run_column_migrations(): void {
+        global $wpdb;
+        $p = $wpdb->prefix;
+
+        // Helper: add a column if it does not already exist.
+        $add_col = static function( string $table, string $column, string $definition ) use ( $wpdb ): void {
+            $exists = $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME   = %s
+                   AND COLUMN_NAME  = %s",
+                $table, $column
+            ) );
+            if ( ! $exists ) {
+                $wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN {$definition}" ); // phpcs:ignore
+            }
+        };
+
+        // ── rsyi_exams: new columns added in v1.3.3 ───────────────────────────
+        $exams = $p . 'rsyi_exams';
+        $add_col( $exams, 'starts_at',     'starts_at     DATETIME         DEFAULT NULL' );
+        $add_col( $exams, 'ends_at',       'ends_at        DATETIME         DEFAULT NULL' );
+        $add_col( $exams, 'show_results',  'show_results   TINYINT(1)       NOT NULL DEFAULT 1' );
+        $add_col( $exams, 'auto_grade',    'auto_grade     TINYINT(1)       NOT NULL DEFAULT 1' );
+        $add_col( $exams, 'allow_regrade', 'allow_regrade  TINYINT(1)       NOT NULL DEFAULT 1' );
+
+        // ── rsyi_exam_questions: new columns added in v1.3.3 ──────────────────
+        $questions = $p . 'rsyi_exam_questions';
+        $add_col( $questions, 'question_type',  "question_type  VARCHAR(30)  NOT NULL DEFAULT 'essay'" );
+        $add_col( $questions, 'options',        'options         LONGTEXT     DEFAULT NULL' );
+        $add_col( $questions, 'correct_answer', 'correct_answer  TEXT         DEFAULT NULL' );
+        $add_col( $questions, 'explanation',    'explanation     TEXT         DEFAULT NULL' );
+
+        // ── rsyi_exam_results: new columns added in v1.3.3 ────────────────────
+        $results = $p . 'rsyi_exam_results';
+        $add_col( $results, 'submitted_at', 'submitted_at DATETIME         DEFAULT NULL' );
+        $add_col( $results, 'auto_graded',  'auto_graded  TINYINT(1)       NOT NULL DEFAULT 0' );
+        $add_col( $results, 'regraded_by',  'regraded_by  BIGINT UNSIGNED  DEFAULT NULL' );
+        $add_col( $results, 'regraded_at',  'regraded_at  DATETIME         DEFAULT NULL' );
     }
 
     /**

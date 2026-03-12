@@ -50,6 +50,8 @@ class Menu {
         // Student-facing: submit exam answers (logged-in only)
         add_action( 'wp_ajax_rsyi_submit_exam',             [ __CLASS__, 'ajax_submit_exam' ] );
         add_action( 'wp_ajax_rsyi_get_exam_for_student',    [ __CLASS__, 'ajax_get_exam_for_student' ] );
+        // DB migration (admin-only manual trigger)
+        add_action( 'wp_ajax_rsyi_run_db_migration',        [ __CLASS__, 'ajax_run_db_migration' ] );
     }
 
     public static function register_menus(): void {
@@ -588,8 +590,11 @@ class Menu {
         ] );
 
         if ( ! $inserted ) {
-            $err = defined( 'WP_DEBUG' ) && WP_DEBUG ? ' [DB: ' . $wpdb->last_error . ']' : '';
-            wp_send_json_error( [ 'message' => __( 'فشل في إنشاء الامتحان. يرجى المحاولة مرة أخرى.', 'rsyi-sa' ) . $err ] );
+            // Always include DB error so admin can see the real reason.
+            wp_send_json_error( [
+                'message' => __( 'فشل في إنشاء الامتحان. يرجى المحاولة مرة أخرى.', 'rsyi-sa' )
+                           . ' [DB: ' . $wpdb->last_error . ']',
+            ] );
         }
 
         $exam_id = (int) $wpdb->insert_id;
@@ -1594,5 +1599,22 @@ class Menu {
             'exam'      => $exam,
             'questions' => $questions,
         ] );
+    }
+
+    /**
+     * Manual DB migration trigger (admin only).
+     * Runs create_tables() + run_column_migrations() regardless of version.
+     */
+    public static function ajax_run_db_migration(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [ 'message' => 'Unauthorized' ] );
+        }
+
+        \RSYI_SA\DB_Installer::create_tables();
+        update_option( \RSYI_SA\DB_Installer::DB_VERSION_OPTION, \RSYI_SA\DB_Installer::DB_VERSION );
+
+        wp_send_json_success( [ 'message' => __( 'تم تحديث قاعدة البيانات بنجاح.', 'rsyi-sa' ) ] );
     }
 }
