@@ -52,7 +52,7 @@ class DB_Installer {
      * Explicit ALTER TABLE migrations for new columns added to existing tables.
      * Each entry is idempotent: checks SHOW COLUMNS before running ALTER.
      */
-    private static function run_column_migrations(): void {
+    public static function run_column_migrations(): void {
         global $wpdb;
         $p = $wpdb->prefix;
 

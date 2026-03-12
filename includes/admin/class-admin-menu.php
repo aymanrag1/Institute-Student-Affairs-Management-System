@@ -561,15 +561,25 @@ class Menu {
         $auto_grade    = isset( $_POST['auto_grade'] )   ? 1 : 0;
         $allow_regrade = isset( $_POST['allow_regrade'] ) ? 1 : 0;
 
-        // Convert datetime-local format (2024-03-15T09:00) to MySQL format
-        $starts_at = $starts_at_raw ? str_replace( 'T', ' ', $starts_at_raw ) . ':00' : null;
-        $ends_at   = $ends_at_raw   ? str_replace( 'T', ' ', $ends_at_raw   ) . ':00' : null;
+        // Convert datetime-local (2024-03-15T09:00 or 2024-03-15T09:00:00) → MySQL DATETIME
+        $dt_to_mysql = static function( string $raw ): ?string {
+            if ( ! $raw ) return null;
+            $s = str_replace( 'T', ' ', $raw );
+            // Ensure HH:MM:SS format (browser may omit seconds)
+            return ( strlen( $s ) === 16 ) ? $s . ':00' : substr( $s, 0, 19 );
+        };
+        $starts_at = $dt_to_mysql( $starts_at_raw );
+        $ends_at   = $dt_to_mysql( $ends_at_raw );
 
         if ( empty( $title ) ) {
             wp_send_json_error( [ 'message' => __( 'عنوان الامتحان مطلوب.', 'rsyi-sa' ) ] );
         }
 
         global $wpdb;
+
+        // Ensure all new columns exist before attempting the INSERT.
+        \RSYI_SA\DB_Installer::run_column_migrations();
+
         $inserted = $wpdb->insert( $wpdb->prefix . 'rsyi_exams', [
             'cohort_id'     => $cohort_id ?: null,
             'title'         => $title,
@@ -736,14 +746,21 @@ class Menu {
         $auto_grade    = isset( $_POST['auto_grade'] )   ? 1 : 0;
         $allow_regrade = isset( $_POST['allow_regrade'] ) ? 1 : 0;
 
-        $starts_at = $starts_at_raw ? str_replace( 'T', ' ', $starts_at_raw ) . ':00' : null;
-        $ends_at   = $ends_at_raw   ? str_replace( 'T', ' ', $ends_at_raw   ) . ':00' : null;
+        $dt_to_mysql = static function( string $raw ): ?string {
+            if ( ! $raw ) return null;
+            $s = str_replace( 'T', ' ', $raw );
+            return ( strlen( $s ) === 16 ) ? $s . ':00' : substr( $s, 0, 19 );
+        };
+        $starts_at = $dt_to_mysql( $starts_at_raw );
+        $ends_at   = $dt_to_mysql( $ends_at_raw );
 
         if ( empty( $title ) ) {
             wp_send_json_error( [ 'message' => __( 'عنوان الامتحان مطلوب.', 'rsyi-sa' ) ] );
         }
 
         global $wpdb;
+        \RSYI_SA\DB_Installer::run_column_migrations();
+
         $wpdb->update(
             $wpdb->prefix . 'rsyi_exams',
             [
