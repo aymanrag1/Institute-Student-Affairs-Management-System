@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.3.1';
+    const DB_VERSION        = '1.3.3';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -385,33 +385,43 @@ class DB_Installer {
                 subject       VARCHAR(120)     DEFAULT NULL,
                 exam_type     VARCHAR(30)      NOT NULL DEFAULT 'written',
                 exam_date     DATE             DEFAULT NULL,
+                starts_at     DATETIME         DEFAULT NULL,
+                ends_at       DATETIME         DEFAULT NULL,
                 duration_min  SMALLINT UNSIGNED DEFAULT NULL,
                 max_score     SMALLINT UNSIGNED NOT NULL DEFAULT 100,
                 passing_score SMALLINT UNSIGNED DEFAULT NULL,
+                show_results  TINYINT(1)       NOT NULL DEFAULT 1,
+                auto_grade    TINYINT(1)       NOT NULL DEFAULT 1,
+                allow_regrade TINYINT(1)       NOT NULL DEFAULT 1,
                 status        VARCHAR(20)      NOT NULL DEFAULT 'published',
                 is_active     TINYINT(1)       NOT NULL DEFAULT 1,
                 created_by    BIGINT UNSIGNED  NOT NULL,
                 created_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
-                KEY idx_exam_cohort  (cohort_id),
-                KEY idx_exam_date    (exam_date),
-                KEY idx_exam_active  (is_active),
-                KEY idx_exam_status  (status)
+                KEY idx_exam_cohort    (cohort_id),
+                KEY idx_exam_date      (exam_date),
+                KEY idx_exam_starts    (starts_at),
+                KEY idx_exam_active    (is_active),
+                KEY idx_exam_status    (status)
             ) $charset;",
 
             // ── Exam Results ─────────────────────────────────────────
             "CREATE TABLE {$p}rsyi_exam_results (
-                id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                exam_id     BIGINT UNSIGNED NOT NULL,
-                student_id  BIGINT UNSIGNED NOT NULL,
-                score       SMALLINT UNSIGNED DEFAULT NULL,
-                grade       VARCHAR(10)     DEFAULT NULL,
-                is_passing  TINYINT(1)      DEFAULT NULL,
-                notes       TEXT            DEFAULT NULL,
-                recorded_by BIGINT UNSIGNED NOT NULL,
-                created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                id           BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+                exam_id      BIGINT UNSIGNED  NOT NULL,
+                student_id   BIGINT UNSIGNED  NOT NULL,
+                score        SMALLINT UNSIGNED DEFAULT NULL,
+                grade        VARCHAR(10)      DEFAULT NULL,
+                is_passing   TINYINT(1)       DEFAULT NULL,
+                notes        TEXT             DEFAULT NULL,
+                submitted_at DATETIME         DEFAULT NULL,
+                auto_graded  TINYINT(1)       NOT NULL DEFAULT 0,
+                regraded_by  BIGINT UNSIGNED  DEFAULT NULL,
+                regraded_at  DATETIME         DEFAULT NULL,
+                recorded_by  BIGINT UNSIGNED  NOT NULL DEFAULT 0,
+                created_at   DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at   DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
                 UNIQUE KEY uq_exam_result (exam_id, student_id),
                 KEY idx_result_exam    (exam_id),
@@ -420,17 +430,38 @@ class DB_Installer {
 
             // ── Exam Questions ───────────────────────────────────────
             "CREATE TABLE {$p}rsyi_exam_questions (
-                id              BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
-                exam_id         BIGINT UNSIGNED  NOT NULL,
+                id              BIGINT UNSIGNED   NOT NULL AUTO_INCREMENT,
+                exam_id         BIGINT UNSIGNED   NOT NULL,
                 question_number SMALLINT UNSIGNED NOT NULL DEFAULT 1,
-                question_text   TEXT             NOT NULL,
-                image_id        BIGINT UNSIGNED  DEFAULT NULL,
-                marks           DECIMAL(5,2)     NOT NULL DEFAULT 1.00,
-                created_at      DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at      DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                question_text   TEXT              NOT NULL,
+                question_type   VARCHAR(30)       NOT NULL DEFAULT 'essay',
+                options         LONGTEXT          DEFAULT NULL,
+                correct_answer  TEXT              DEFAULT NULL,
+                explanation     TEXT              DEFAULT NULL,
+                image_id        BIGINT UNSIGNED   DEFAULT NULL,
+                marks           DECIMAL(5,2)      NOT NULL DEFAULT 1.00,
+                created_at      DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at      DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
                 KEY idx_q_exam  (exam_id),
                 KEY idx_q_order (exam_id, question_number)
+            ) $charset;",
+
+            // ── Exam Answers (student submissions) ───────────────────
+            "CREATE TABLE {$p}rsyi_exam_answers (
+                id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                exam_id      BIGINT UNSIGNED NOT NULL,
+                student_id   BIGINT UNSIGNED NOT NULL,
+                question_id  BIGINT UNSIGNED NOT NULL,
+                answer_data  LONGTEXT        DEFAULT NULL,
+                is_correct   TINYINT(1)      DEFAULT NULL,
+                score_earned DECIMAL(5,2)    DEFAULT NULL,
+                created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_answer (exam_id, student_id, question_id),
+                KEY idx_ans_exam    (exam_id),
+                KEY idx_ans_student (student_id)
             ) $charset;",
 
             // ── Audit Log ────────────────────────────────────────────
@@ -541,6 +572,12 @@ class DB_Installer {
                 'title'     => 'My Attendance Record',
                 'shortcode' => '[rsyi_portal_attendance_record]',
                 'option'    => 'rsyi_page_attendance_record',
+            ],
+            [
+                'slug'      => 'student-exams',
+                'title'     => 'My Exams',
+                'shortcode' => '[rsyi_portal_exams]',
+                'option'    => 'rsyi_page_exams',
             ],
         ];
 

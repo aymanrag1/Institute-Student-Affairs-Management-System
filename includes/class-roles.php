@@ -266,6 +266,7 @@ class Roles {
                     'rsyi_view_own_materials'        => true,
                     'rsyi_view_own_exam_results'     => true,
                     'rsyi_view_own_attendance'       => true,
+                    'rsyi_take_exam'                 => true,
                 ],
             ],
         ];

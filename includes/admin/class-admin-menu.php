@@ -45,6 +45,11 @@ class Menu {
         add_action( 'wp_ajax_rsyi_get_questions',           [ __CLASS__, 'ajax_get_questions' ] );
         add_action( 'wp_ajax_rsyi_save_question',           [ __CLASS__, 'ajax_save_question' ] );
         add_action( 'wp_ajax_rsyi_delete_question',         [ __CLASS__, 'ajax_delete_question' ] );
+        add_action( 'wp_ajax_rsyi_auto_grade_exam',         [ __CLASS__, 'ajax_auto_grade_exam' ] );
+        add_action( 'wp_ajax_rsyi_regrade_result',          [ __CLASS__, 'ajax_regrade_result' ] );
+        // Student-facing: submit exam answers (logged-in only)
+        add_action( 'wp_ajax_rsyi_submit_exam',             [ __CLASS__, 'ajax_submit_exam' ] );
+        add_action( 'wp_ajax_rsyi_get_exam_for_student',    [ __CLASS__, 'ajax_get_exam_for_student' ] );
     }
 
     public static function register_menus(): void {
@@ -542,13 +547,21 @@ class Menu {
         $title         = sanitize_text_field( wp_unslash( $_POST['title']       ?? '' ) );
         $subject       = sanitize_text_field( wp_unslash( $_POST['subject']     ?? '' ) );
         $cohort_id     = absint( $_POST['cohort_id'] ?? 0 );
-        $exam_date     = sanitize_text_field( wp_unslash( $_POST['exam_date']   ?? '' ) );
+        $starts_at_raw = sanitize_text_field( wp_unslash( $_POST['starts_at']   ?? '' ) );
+        $ends_at_raw   = sanitize_text_field( wp_unslash( $_POST['ends_at']     ?? '' ) );
         $duration_min  = absint( $_POST['duration_min'] ?? 0 );
         $max_score     = absint( $_POST['max_score']    ?? 100 );
         $passing_score = ( isset( $_POST['passing_score'] ) && $_POST['passing_score'] !== '' ) ? absint( $_POST['passing_score'] ) : null;
         $exam_type     = sanitize_key( $_POST['exam_type'] ?? 'written' );
         $status        = sanitize_key( $_POST['status']    ?? 'published' );
         $desc          = sanitize_textarea_field( wp_unslash( $_POST['description'] ?? '' ) );
+        $show_results  = isset( $_POST['show_results'] ) ? 1 : 0;
+        $auto_grade    = isset( $_POST['auto_grade'] )   ? 1 : 0;
+        $allow_regrade = isset( $_POST['allow_regrade'] ) ? 1 : 0;
+
+        // Convert datetime-local format (2024-03-15T09:00) to MySQL format
+        $starts_at = $starts_at_raw ? str_replace( 'T', ' ', $starts_at_raw ) . ':00' : null;
+        $ends_at   = $ends_at_raw   ? str_replace( 'T', ' ', $ends_at_raw   ) . ':00' : null;
 
         if ( empty( $title ) ) {
             wp_send_json_error( [ 'message' => __( 'عنوان الامتحان مطلوب.', 'rsyi-sa' ) ] );
@@ -560,12 +573,16 @@ class Menu {
             'title'         => $title,
             'description'   => $desc,
             'subject'       => $subject ?: null,
-            'exam_date'     => $exam_date ?: null,
+            'starts_at'     => $starts_at,
+            'ends_at'       => $ends_at,
             'duration_min'  => $duration_min ?: null,
             'max_score'     => $max_score ?: 100,
             'passing_score' => $passing_score,
             'exam_type'     => $exam_type,
             'status'        => $status,
+            'show_results'  => $show_results,
+            'auto_grade'    => $auto_grade,
+            'allow_regrade' => $allow_regrade,
             'is_active'     => 1,
             'created_by'    => get_current_user_id(),
         ] );
@@ -676,8 +693,10 @@ class Menu {
         }
 
         global $wpdb;
-        $wpdb->delete( $wpdb->prefix . 'rsyi_exam_results', [ 'exam_id' => $exam_id ] );
-        $wpdb->delete( $wpdb->prefix . 'rsyi_exams', [ 'id' => $exam_id ] );
+        $wpdb->delete( $wpdb->prefix . 'rsyi_exam_answers',   [ 'exam_id' => $exam_id ] );
+        $wpdb->delete( $wpdb->prefix . 'rsyi_exam_results',   [ 'exam_id' => $exam_id ] );
+        $wpdb->delete( $wpdb->prefix . 'rsyi_exam_questions', [ 'exam_id' => $exam_id ] );
+        $wpdb->delete( $wpdb->prefix . 'rsyi_exams',          [ 'id'      => $exam_id ] );
 
         \RSYI_SA\Audit_Log::log( 'exam', $exam_id, 'delete', [] );
 
@@ -699,13 +718,20 @@ class Menu {
         $title         = sanitize_text_field( wp_unslash( $_POST['title']       ?? '' ) );
         $subject       = sanitize_text_field( wp_unslash( $_POST['subject']     ?? '' ) );
         $cohort_id     = absint( $_POST['cohort_id'] ?? 0 );
-        $exam_date     = sanitize_text_field( wp_unslash( $_POST['exam_date']   ?? '' ) );
+        $starts_at_raw = sanitize_text_field( wp_unslash( $_POST['starts_at']   ?? '' ) );
+        $ends_at_raw   = sanitize_text_field( wp_unslash( $_POST['ends_at']     ?? '' ) );
         $duration_min  = absint( $_POST['duration_min'] ?? 0 );
         $max_score     = absint( $_POST['max_score']    ?? 100 );
-        $passing_score = $_POST['passing_score'] !== '' ? absint( $_POST['passing_score'] ) : null;
+        $passing_score = ( isset( $_POST['passing_score'] ) && $_POST['passing_score'] !== '' ) ? absint( $_POST['passing_score'] ) : null;
         $exam_type     = sanitize_key( $_POST['exam_type']  ?? 'written' );
         $status        = sanitize_key( $_POST['status']     ?? 'published' );
         $desc          = sanitize_textarea_field( wp_unslash( $_POST['description'] ?? '' ) );
+        $show_results  = isset( $_POST['show_results'] ) ? 1 : 0;
+        $auto_grade    = isset( $_POST['auto_grade'] )   ? 1 : 0;
+        $allow_regrade = isset( $_POST['allow_regrade'] ) ? 1 : 0;
+
+        $starts_at = $starts_at_raw ? str_replace( 'T', ' ', $starts_at_raw ) . ':00' : null;
+        $ends_at   = $ends_at_raw   ? str_replace( 'T', ' ', $ends_at_raw   ) . ':00' : null;
 
         if ( empty( $title ) ) {
             wp_send_json_error( [ 'message' => __( 'عنوان الامتحان مطلوب.', 'rsyi-sa' ) ] );
@@ -718,13 +744,17 @@ class Menu {
                 'title'         => $title,
                 'subject'       => $subject ?: null,
                 'cohort_id'     => $cohort_id ?: null,
-                'exam_date'     => $exam_date ?: null,
+                'starts_at'     => $starts_at,
+                'ends_at'       => $ends_at,
                 'duration_min'  => $duration_min ?: null,
                 'max_score'     => $max_score ?: 100,
                 'passing_score' => $passing_score,
                 'exam_type'     => $exam_type,
                 'status'        => $status,
                 'description'   => $desc,
+                'show_results'  => $show_results,
+                'auto_grade'    => $auto_grade,
+                'allow_regrade' => $allow_regrade,
             ],
             [ 'id' => $exam_id ]
         );
@@ -980,8 +1010,30 @@ class Menu {
         $question_id     = absint( $_POST['question_id'] ?? 0 );
         $question_number = absint( $_POST['question_number'] ?? 1 );
         $question_text   = sanitize_textarea_field( wp_unslash( $_POST['question_text'] ?? '' ) );
+        $question_type   = sanitize_key( $_POST['question_type'] ?? 'essay' );
         $image_id        = absint( $_POST['image_id'] ?? 0 );
         $marks           = (float) ( $_POST['marks'] ?? 1 );
+        $explanation     = sanitize_textarea_field( wp_unslash( $_POST['explanation'] ?? '' ) );
+
+        // Options / correct_answer depend on question type (sent as JSON string from JS)
+        $options_raw        = wp_unslash( $_POST['options']         ?? '' );
+        $correct_answer_raw = wp_unslash( $_POST['correct_answer']  ?? '' );
+
+        // Validate JSON if provided
+        $options        = null;
+        $correct_answer = null;
+        if ( $options_raw ) {
+            $decoded = json_decode( $options_raw, true );
+            $options = is_array( $decoded ) ? wp_json_encode( $decoded ) : null;
+        }
+        if ( $correct_answer_raw !== '' ) {
+            $correct_answer = sanitize_textarea_field( $correct_answer_raw );
+        }
+
+        $allowed_types = [ 'mcq', 'true_false', 'matching', 'fill_blank', 'short_answer', 'essay', 'ordering' ];
+        if ( ! in_array( $question_type, $allowed_types, true ) ) {
+            $question_type = 'essay';
+        }
 
         if ( ! $exam_id || ! $question_text ) {
             wp_send_json_error( [ 'message' => __( 'نص السؤال مطلوب.', 'rsyi-sa' ) ] );
@@ -991,22 +1043,23 @@ class Menu {
             'exam_id'         => $exam_id,
             'question_number' => max( 1, $question_number ),
             'question_text'   => $question_text,
+            'question_type'   => $question_type,
+            'options'         => $options,
+            'correct_answer'  => $correct_answer,
+            'explanation'     => $explanation ?: null,
             'image_id'        => $image_id ?: null,
             'marks'           => max( 0, $marks ),
         ];
-        $formats = [ '%d', '%d', '%s', '%d', '%f' ];
 
         if ( $question_id ) {
             $wpdb->update(
                 "{$wpdb->prefix}rsyi_exam_questions",
                 $data,
-                [ 'id' => $question_id ],
-                $formats,
-                [ '%d' ]
+                [ 'id' => $question_id ]
             );
             wp_send_json_success( [ 'message' => __( 'تم تحديث السؤال.', 'rsyi-sa' ), 'id' => $question_id ] );
         } else {
-            $wpdb->insert( "{$wpdb->prefix}rsyi_exam_questions", $data, $formats );
+            $wpdb->insert( "{$wpdb->prefix}rsyi_exam_questions", $data );
             wp_send_json_success( [ 'message' => __( 'تم إضافة السؤال.', 'rsyi-sa' ), 'id' => $wpdb->insert_id ] );
         }
     }
@@ -1025,5 +1078,520 @@ class Menu {
         global $wpdb;
         $wpdb->delete( "{$wpdb->prefix}rsyi_exam_questions", [ 'id' => $question_id ], [ '%d' ] );
         wp_send_json_success( [ 'message' => __( 'تم حذف السؤال.', 'rsyi-sa' ) ] );
+    }
+
+    // ── Auto-grade exam ────────────────────────────────────────────────────────
+
+    public static function ajax_auto_grade_exam(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_exams' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $exam_id = absint( $_POST['exam_id'] ?? 0 );
+        if ( ! $exam_id ) {
+            wp_send_json_error( [ 'message' => __( 'معرف الامتحان مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+
+        $exam = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_exams WHERE id = %d",
+            $exam_id
+        ) );
+        if ( ! $exam ) {
+            wp_send_json_error( [ 'message' => __( 'الامتحان غير موجود.', 'rsyi-sa' ) ] );
+        }
+
+        $max_score    = (int) ( $exam->max_score ?: 100 );
+        $passing_thrs = $exam->passing_score !== null ? (int) $exam->passing_score : (int) round( $max_score * 0.5 );
+
+        // Get all questions for this exam
+        $questions = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_exam_questions WHERE exam_id = %d ORDER BY question_number ASC",
+            $exam_id
+        ) );
+
+        // Get all student answers for this exam
+        $answers_raw = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_exam_answers WHERE exam_id = %d",
+            $exam_id
+        ) );
+
+        // Build: [student_id][question_id] = answer_data
+        $answers_map = [];
+        foreach ( $answers_raw as $a ) {
+            $answers_map[ (int) $a->student_id ][ (int) $a->question_id ] = $a->answer_data;
+        }
+
+        if ( empty( $answers_map ) ) {
+            wp_send_json_error( [ 'message' => __( 'لا توجد إجابات مُسلَّمة لهذا الامتحان.', 'rsyi-sa' ) ] );
+        }
+
+        $graded = 0;
+        foreach ( $answers_map as $student_id => $student_answers ) {
+            $total_score    = 0;
+            $total_possible = 0;
+
+            foreach ( $questions as $q ) {
+                $q_marks  = (float) $q->marks;
+                $total_possible += $q_marks;
+                $answer   = $student_answers[ (int) $q->id ] ?? null;
+                if ( $answer === null ) continue;
+
+                $is_correct = false;
+
+                switch ( $q->question_type ) {
+                    case 'mcq':
+                        // options JSON: [{"text":"...","correct":bool},...]
+                        // answer_data: index of chosen option (string)
+                        $opts = $q->options ? json_decode( $q->options, true ) : [];
+                        $chosen = (int) $answer;
+                        if ( isset( $opts[ $chosen ] ) && ! empty( $opts[ $chosen ]['correct'] ) ) {
+                            $is_correct = true;
+                        }
+                        break;
+
+                    case 'true_false':
+                        // correct_answer: "true" | "false"
+                        $is_correct = ( strtolower( trim( $answer ) ) === strtolower( trim( $q->correct_answer ?? '' ) ) );
+                        break;
+
+                    case 'matching':
+                        // options: [{"premise":"...","match":"..."},...]
+                        // answer_data: JSON [{"premise":"...","match":"..."}, ...] – student's pairs
+                        $correct_pairs = $q->options ? json_decode( $q->options, true ) : [];
+                        $student_pairs = json_decode( $answer, true );
+                        if ( is_array( $correct_pairs ) && is_array( $student_pairs ) ) {
+                            $correct_map = [];
+                            foreach ( $correct_pairs as $p ) {
+                                $correct_map[ $p['premise'] ] = $p['match'];
+                            }
+                            $all_correct = true;
+                            foreach ( $student_pairs as $p ) {
+                                if ( ( $correct_map[ $p['premise'] ] ?? '' ) !== $p['match'] ) {
+                                    $all_correct = false;
+                                    break;
+                                }
+                            }
+                            $is_correct = $all_correct && count( $student_pairs ) === count( $correct_pairs );
+                        }
+                        break;
+
+                    case 'fill_blank':
+                        // correct_answer: plain text
+                        $is_correct = ( mb_strtolower( trim( $answer ) ) === mb_strtolower( trim( $q->correct_answer ?? '' ) ) );
+                        break;
+
+                    case 'ordering':
+                        // options: [{"text":"...","order":int},...]
+                        // answer_data: JSON array of texts in student's order
+                        $correct_items = $q->options ? json_decode( $q->options, true ) : [];
+                        $student_order = json_decode( $answer, true );
+                        if ( is_array( $correct_items ) && is_array( $student_order ) ) {
+                            usort( $correct_items, fn( $a, $b ) => $a['order'] - $b['order'] );
+                            $correct_order = array_column( $correct_items, 'text' );
+                            $is_correct    = ( $correct_order === $student_order );
+                        }
+                        break;
+
+                    case 'short_answer':
+                    case 'essay':
+                    default:
+                        // No auto-grading for open-ended types
+                        continue 2;
+                }
+
+                if ( $is_correct ) {
+                    $total_score += $q_marks;
+                }
+
+                // Update individual answer record
+                $wpdb->update(
+                    "{$wpdb->prefix}rsyi_exam_answers",
+                    [
+                        'is_correct'   => $is_correct ? 1 : 0,
+                        'score_earned' => $is_correct ? $q_marks : 0,
+                    ],
+                    [
+                        'exam_id'     => $exam_id,
+                        'student_id'  => $student_id,
+                        'question_id' => (int) $q->id,
+                    ]
+                );
+            }
+
+            // Normalize score to exam's max_score scale
+            $scaled_score = $total_possible > 0
+                ? (int) round( $total_score / $total_possible * $max_score )
+                : 0;
+
+            $pct   = $max_score > 0 ? $scaled_score / $max_score * 100 : 0;
+            $grade = $pct >= 90 ? 'A+' : ( $pct >= 80 ? 'A' : ( $pct >= 70 ? 'B' : ( $pct >= 60 ? 'C' : ( $pct >= 50 ? 'D' : 'F' ) ) ) );
+            $is_passing = $scaled_score >= $passing_thrs ? 1 : 0;
+
+            $existing = $wpdb->get_var( $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}rsyi_exam_results WHERE exam_id = %d AND student_id = %d LIMIT 1",
+                $exam_id, $student_id
+            ) );
+
+            if ( $existing ) {
+                $wpdb->update(
+                    "{$wpdb->prefix}rsyi_exam_results",
+                    [
+                        'score'       => $scaled_score,
+                        'grade'       => $grade,
+                        'is_passing'  => $is_passing,
+                        'auto_graded' => 1,
+                        'recorded_by' => get_current_user_id(),
+                    ],
+                    [ 'id' => $existing ]
+                );
+            } else {
+                $wpdb->insert(
+                    "{$wpdb->prefix}rsyi_exam_results",
+                    [
+                        'exam_id'     => $exam_id,
+                        'student_id'  => $student_id,
+                        'score'       => $scaled_score,
+                        'grade'       => $grade,
+                        'is_passing'  => $is_passing,
+                        'auto_graded' => 1,
+                        'recorded_by' => get_current_user_id(),
+                    ]
+                );
+            }
+            $graded++;
+        }
+
+        \RSYI_SA\Audit_Log::log( 'exam', $exam_id, 'auto_grade', [ 'graded' => $graded ] );
+
+        wp_send_json_success( [
+            'message' => sprintf( __( 'تم التصحيح التلقائي لـ %d طالب.', 'rsyi-sa' ), $graded ),
+            'graded'  => $graded,
+        ] );
+    }
+
+    // ── Re-grade a single student result ──────────────────────────────────────
+
+    public static function ajax_regrade_result(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_exams' ) ) {
+            wp_send_json_error( [ 'message' => __( 'صلاحية غير كافية.', 'rsyi-sa' ) ] );
+        }
+
+        $exam_id    = absint( $_POST['exam_id']    ?? 0 );
+        $student_id = absint( $_POST['student_id'] ?? 0 );
+        $score      = absint( $_POST['score']      ?? 0 );
+        $notes      = sanitize_text_field( wp_unslash( $_POST['notes'] ?? '' ) );
+
+        if ( ! $exam_id || ! $student_id ) {
+            wp_send_json_error( [ 'message' => __( 'بيانات غير مكتملة.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+
+        $exam = $wpdb->get_row( $wpdb->prepare(
+            "SELECT max_score, passing_score FROM {$wpdb->prefix}rsyi_exams WHERE id = %d",
+            $exam_id
+        ) );
+        $max_score    = $exam ? (int) $exam->max_score : 100;
+        $passing_thrs = ( $exam && $exam->passing_score !== null ) ? (int) $exam->passing_score : (int) round( $max_score * 0.5 );
+
+        $pct       = $max_score > 0 ? $score / $max_score * 100 : 0;
+        $grade     = $pct >= 90 ? 'A+' : ( $pct >= 80 ? 'A' : ( $pct >= 70 ? 'B' : ( $pct >= 60 ? 'C' : ( $pct >= 50 ? 'D' : 'F' ) ) ) );
+        $is_passing = $score >= $passing_thrs ? 1 : 0;
+        $now        = current_time( 'mysql' );
+
+        $existing = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}rsyi_exam_results WHERE exam_id = %d AND student_id = %d LIMIT 1",
+            $exam_id, $student_id
+        ) );
+
+        if ( $existing ) {
+            $wpdb->update(
+                "{$wpdb->prefix}rsyi_exam_results",
+                [
+                    'score'       => $score,
+                    'grade'       => $grade,
+                    'is_passing'  => $is_passing,
+                    'notes'       => $notes,
+                    'regraded_by' => get_current_user_id(),
+                    'regraded_at' => $now,
+                    'recorded_by' => get_current_user_id(),
+                ],
+                [ 'id' => $existing ]
+            );
+        } else {
+            $wpdb->insert(
+                "{$wpdb->prefix}rsyi_exam_results",
+                [
+                    'exam_id'     => $exam_id,
+                    'student_id'  => $student_id,
+                    'score'       => $score,
+                    'grade'       => $grade,
+                    'is_passing'  => $is_passing,
+                    'notes'       => $notes,
+                    'regraded_by' => get_current_user_id(),
+                    'regraded_at' => $now,
+                    'recorded_by' => get_current_user_id(),
+                ]
+            );
+        }
+
+        \RSYI_SA\Audit_Log::log( 'exam_result', $exam_id, 'regrade', [
+            'student_id' => $student_id,
+            'score'      => $score,
+            'grade'      => $grade,
+        ] );
+
+        wp_send_json_success( [
+            'message'    => __( 'تم تحديث الدرجة.', 'rsyi-sa' ),
+            'grade'      => $grade,
+            'is_passing' => $is_passing,
+        ] );
+    }
+
+    // ── Student submits exam answers ───────────────────────────────────────────
+
+    public static function ajax_submit_exam(): void {
+        check_ajax_referer( 'rsyi_sa_portal', '_nonce' );
+
+        if ( ! is_user_logged_in() || ! current_user_can( 'rsyi_take_exam' ) ) {
+            wp_send_json_error( [ 'message' => __( 'يجب تسجيل الدخول أولاً.', 'rsyi-sa' ) ] );
+        }
+
+        $exam_id = absint( $_POST['exam_id'] ?? 0 );
+        if ( ! $exam_id ) {
+            wp_send_json_error( [ 'message' => __( 'معرف الامتحان مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+
+        // Get exam and validate it's still open
+        $exam = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_exams WHERE id = %d AND is_active = 1",
+            $exam_id
+        ) );
+        if ( ! $exam ) {
+            wp_send_json_error( [ 'message' => __( 'الامتحان غير موجود.', 'rsyi-sa' ) ] );
+        }
+
+        $now = current_time( 'mysql' );
+        if ( $exam->starts_at && $now < $exam->starts_at ) {
+            wp_send_json_error( [ 'message' => __( 'لم يبدأ وقت الامتحان بعد.', 'rsyi-sa' ) ] );
+        }
+        if ( $exam->ends_at && $now > $exam->ends_at ) {
+            wp_send_json_error( [ 'message' => __( 'انتهى وقت الامتحان.', 'rsyi-sa' ) ] );
+        }
+
+        // Get student profile
+        $profile = \RSYI_SA\Modules\Accounts::get_profile_by_user_id( get_current_user_id() );
+        if ( ! $profile ) {
+            wp_send_json_error( [ 'message' => __( 'لم يتم العثور على ملفك الشخصي.', 'rsyi-sa' ) ] );
+        }
+        $student_id = (int) $profile->id;
+
+        // Check not already submitted
+        $already = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}rsyi_exam_results WHERE exam_id = %d AND student_id = %d LIMIT 1",
+            $exam_id, $student_id
+        ) );
+        if ( $already ) {
+            wp_send_json_error( [ 'message' => __( 'لقد سلّمت هذا الامتحان مسبقاً.', 'rsyi-sa' ) ] );
+        }
+
+        // Get answers from POST: answers[question_id] = answer_data
+        $submitted_answers = (array) ( $_POST['answers'] ?? [] );
+
+        // Save each answer
+        foreach ( $submitted_answers as $q_id => $ans_raw ) {
+            $question_id = absint( $q_id );
+            if ( ! $question_id ) continue;
+
+            $answer_data = is_array( $ans_raw )
+                ? wp_json_encode( array_map( 'sanitize_text_field', $ans_raw ) )
+                : sanitize_textarea_field( wp_unslash( (string) $ans_raw ) );
+
+            $wpdb->replace(
+                "{$wpdb->prefix}rsyi_exam_answers",
+                [
+                    'exam_id'     => $exam_id,
+                    'student_id'  => $student_id,
+                    'question_id' => $question_id,
+                    'answer_data' => $answer_data,
+                ]
+            );
+        }
+
+        $max_score    = (int) ( $exam->max_score ?: 100 );
+        $passing_thrs = $exam->passing_score !== null ? (int) $exam->passing_score : (int) round( $max_score * 0.5 );
+
+        // If auto_grade is on: compute score immediately
+        $score      = null;
+        $grade      = null;
+        $is_passing = null;
+        $auto_graded = 0;
+
+        if ( $exam->auto_grade ) {
+            $questions = $wpdb->get_results( $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}rsyi_exam_questions WHERE exam_id = %d",
+                $exam_id
+            ) );
+
+            $total_score    = 0;
+            $total_possible = 0;
+
+            foreach ( $questions as $q ) {
+                $q_marks = (float) $q->marks;
+                $total_possible += $q_marks;
+                $answer = $submitted_answers[ (string) $q->id ] ?? null;
+                if ( $answer === null ) continue;
+
+                $is_correct = false;
+
+                switch ( $q->question_type ) {
+                    case 'mcq':
+                        $opts   = $q->options ? json_decode( $q->options, true ) : [];
+                        $chosen = (int) $answer;
+                        $is_correct = isset( $opts[ $chosen ] ) && ! empty( $opts[ $chosen ]['correct'] );
+                        break;
+
+                    case 'true_false':
+                        $is_correct = ( strtolower( trim( is_array($answer) ? '' : $answer ) ) === strtolower( trim( $q->correct_answer ?? '' ) ) );
+                        break;
+
+                    case 'matching':
+                        $correct_pairs  = $q->options ? json_decode( $q->options, true ) : [];
+                        $student_pairs  = is_array( $answer ) ? $answer : json_decode( $answer, true );
+                        if ( is_array( $correct_pairs ) && is_array( $student_pairs ) ) {
+                            $correct_map = [];
+                            foreach ( $correct_pairs as $p ) { $correct_map[ $p['premise'] ] = $p['match']; }
+                            $all_ok = true;
+                            foreach ( $student_pairs as $p ) {
+                                if ( ( $correct_map[ $p['premise'] ] ?? '' ) !== $p['match'] ) { $all_ok = false; break; }
+                            }
+                            $is_correct = $all_ok && count( $student_pairs ) === count( $correct_pairs );
+                        }
+                        break;
+
+                    case 'fill_blank':
+                        $is_correct = ( mb_strtolower( trim( is_array($answer) ? '' : $answer ) ) === mb_strtolower( trim( $q->correct_answer ?? '' ) ) );
+                        break;
+
+                    case 'ordering':
+                        $correct_items = $q->options ? json_decode( $q->options, true ) : [];
+                        $student_order = is_array( $answer ) ? $answer : json_decode( $answer, true );
+                        if ( is_array( $correct_items ) && is_array( $student_order ) ) {
+                            usort( $correct_items, fn( $a, $b ) => $a['order'] - $b['order'] );
+                            $is_correct = ( array_column( $correct_items, 'text' ) === $student_order );
+                        }
+                        break;
+
+                    default:
+                        continue 2;
+                }
+
+                if ( $is_correct ) $total_score += $q_marks;
+
+                $wpdb->update(
+                    "{$wpdb->prefix}rsyi_exam_answers",
+                    [ 'is_correct' => $is_correct ? 1 : 0, 'score_earned' => $is_correct ? $q_marks : 0 ],
+                    [ 'exam_id' => $exam_id, 'student_id' => $student_id, 'question_id' => (int) $q->id ]
+                );
+            }
+
+            $score       = $total_possible > 0 ? (int) round( $total_score / $total_possible * $max_score ) : 0;
+            $pct         = $max_score > 0 ? $score / $max_score * 100 : 0;
+            $grade       = $pct >= 90 ? 'A+' : ( $pct >= 80 ? 'A' : ( $pct >= 70 ? 'B' : ( $pct >= 60 ? 'C' : ( $pct >= 50 ? 'D' : 'F' ) ) ) );
+            $is_passing  = $score >= $passing_thrs ? 1 : 0;
+            $auto_graded = 1;
+        }
+
+        // Save result record
+        $wpdb->insert(
+            "{$wpdb->prefix}rsyi_exam_results",
+            [
+                'exam_id'      => $exam_id,
+                'student_id'   => $student_id,
+                'score'        => $score,
+                'grade'        => $grade,
+                'is_passing'   => $is_passing,
+                'submitted_at' => $now,
+                'auto_graded'  => $auto_graded,
+                'recorded_by'  => 0,
+            ]
+        );
+
+        $response = [ 'message' => __( 'تم تسليم الامتحان بنجاح.', 'rsyi-sa' ) ];
+        if ( $exam->show_results && $auto_graded ) {
+            $response['score']      = $score;
+            $response['grade']      = $grade;
+            $response['is_passing'] = $is_passing;
+            $response['max_score']  = $max_score;
+        }
+
+        wp_send_json_success( $response );
+    }
+
+    // ── Get exam data for student (portal) ────────────────────────────────────
+
+    public static function ajax_get_exam_for_student(): void {
+        check_ajax_referer( 'rsyi_sa_portal', '_nonce' );
+
+        if ( ! is_user_logged_in() || ! current_user_can( 'rsyi_take_exam' ) ) {
+            wp_send_json_error( [ 'message' => __( 'يجب تسجيل الدخول أولاً.', 'rsyi-sa' ) ] );
+        }
+
+        $exam_id = absint( $_POST['exam_id'] ?? 0 );
+        if ( ! $exam_id ) {
+            wp_send_json_error( [ 'message' => __( 'معرف الامتحان مطلوب.', 'rsyi-sa' ) ] );
+        }
+
+        global $wpdb;
+
+        $exam = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, title, starts_at, ends_at, duration_min, max_score FROM {$wpdb->prefix}rsyi_exams
+             WHERE id = %d AND is_active = 1",
+            $exam_id
+        ) );
+        if ( ! $exam ) {
+            wp_send_json_error( [ 'message' => __( 'الامتحان غير موجود.', 'rsyi-sa' ) ] );
+        }
+
+        // Only return questions without correct_answer (don't leak answers to student)
+        $questions = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, question_number, question_text, question_type, options, marks, image_id
+             FROM {$wpdb->prefix}rsyi_exam_questions
+             WHERE exam_id = %d ORDER BY question_number ASC",
+            $exam_id
+        ) );
+
+        foreach ( $questions as $q ) {
+            $q->image_url = $q->image_id ? wp_get_attachment_image_url( (int) $q->image_id, 'medium' ) : null;
+            // For matching/ordering, shuffle options so student doesn't see the order
+            if ( $q->options && in_array( $q->question_type, [ 'matching', 'ordering' ], true ) ) {
+                $opts = json_decode( $q->options, true );
+                if ( is_array( $opts ) ) {
+                    if ( $q->question_type === 'ordering' ) {
+                        // Remove order field before sending
+                        $opts = array_map( fn( $o ) => [ 'text' => $o['text'] ], $opts );
+                        shuffle( $opts );
+                    } elseif ( $q->question_type === 'matching' ) {
+                        // Send premises and matches separately (shuffled)
+                        $matches = array_column( $opts, 'match' );
+                        shuffle( $matches );
+                        $q->shuffled_matches = $matches;
+                        $opts = array_map( fn( $o ) => [ 'premise' => $o['premise'] ], $opts );
+                    }
+                    $q->options = wp_json_encode( $opts );
+                }
+            }
+        }
+
+        wp_send_json_success( [
+            'exam'      => $exam,
+            'questions' => $questions,
+        ] );
     }
 }

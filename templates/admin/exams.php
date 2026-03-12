@@ -1,8 +1,8 @@
 <?php
 /**
- * Admin Template: Exams Management (v1.3.0)
- * 5 tabs: list | add | edit | results | stats
- * Requires capability: rsyi_manage_exams
+ * Admin Template: Exams Management (v1.3.3)
+ * Tabs: list | add | edit | questions | results | stats
+ * Supports: starts_at/ends_at, 7 question types, auto-grading, show_results, allow_regrade
  *
  * @package RSYI_StudentAffairs
  */
@@ -22,10 +22,9 @@ $exams      = $wpdb->get_results(
      FROM {$wpdb->prefix}rsyi_exams e
      LEFT JOIN {$wpdb->users} u ON u.ID = e.created_by
      LEFT JOIN {$wpdb->prefix}rsyi_cohorts c ON c.id = e.cohort_id
-     ORDER BY e.exam_date DESC, e.created_at DESC LIMIT 200"
+     ORDER BY e.starts_at DESC, e.created_at DESC LIMIT 200"
 );
 
-// Selected exam for results/edit/stats tabs
 $selected_exam_id = absint( $_GET['exam_id'] ?? 0 );
 $selected_exam    = null;
 $exam_students    = [];
@@ -58,15 +57,20 @@ $type_labels   = [ 'written' => 'نظري', 'practical' => 'عملي', 'project'
 $status_labels = [ 'published' => 'منشور', 'draft' => 'مسودة', 'closed' => 'مغلق' ];
 $status_colors = [ 'published' => '#27ae60', 'draft' => '#999', 'closed' => '#e74c3c' ];
 
-// Auto-calculate grade letter from percent
-function rsyi_auto_grade( int $score, int $max ): string {
-    $pct = $max > 0 ? $score / $max * 100 : 0;
-    if ( $pct >= 90 ) return 'A+';
-    if ( $pct >= 80 ) return 'A';
-    if ( $pct >= 70 ) return 'B';
-    if ( $pct >= 60 ) return 'C';
-    if ( $pct >= 50 ) return 'D';
-    return 'F';
+$q_type_labels = [
+    'mcq'          => 'اختيار متعدد (MCQ)',
+    'true_false'   => 'صح / خطأ',
+    'matching'     => 'توصيل / مطابقة',
+    'fill_blank'   => 'إكمال الناقص',
+    'short_answer' => 'إجابة قصيرة',
+    'essay'        => 'مقالة / إنشاء',
+    'ordering'     => 'ترتيب العناصر',
+];
+
+// Format datetime for datetime-local input
+function rsyi_dt_local( ?string $dt ): string {
+    if ( ! $dt ) return '';
+    return substr( str_replace( ' ', 'T', $dt ), 0, 16 );
 }
 ?>
 <h1 class="wp-heading-inline"><?php esc_html_e( 'الامتحانات', 'rsyi-sa' ); ?></h1>
@@ -99,7 +103,7 @@ function rsyi_auto_grade( int $score, int $max ): string {
     <?php endif; ?>
     <a href="<?php echo esc_url( add_query_arg( [ 'page' => 'rsyi-exams', 'tab' => 'results', 'exam_id' => $selected_exam_id ], admin_url( 'admin.php' ) ) ); ?>"
        class="nav-tab <?php echo $active_tab === 'results' ? 'nav-tab-active' : ''; ?>">
-        <?php esc_html_e( 'إدخال النتائج', 'rsyi-sa' ); ?>
+        <?php esc_html_e( 'النتائج', 'rsyi-sa' ); ?>
     </a>
     <?php if ( current_user_can( 'rsyi_view_exam_stats' ) ) : ?>
     <a href="<?php echo esc_url( add_query_arg( [ 'page' => 'rsyi-exams', 'tab' => 'stats', 'exam_id' => $selected_exam_id ], admin_url( 'admin.php' ) ) ); ?>"
@@ -122,23 +126,46 @@ function rsyi_auto_grade( int $score, int $max ): string {
             <th><?php esc_html_e( 'المادة', 'rsyi-sa' ); ?></th>
             <th><?php esc_html_e( 'الفوج', 'rsyi-sa' ); ?></th>
             <th><?php esc_html_e( 'النوع', 'rsyi-sa' ); ?></th>
-            <th><?php esc_html_e( 'التاريخ', 'rsyi-sa' ); ?></th>
-            <th style="text-align:center;"><?php esc_html_e( 'الدرجة القصوى', 'rsyi-sa' ); ?></th>
+            <th><?php esc_html_e( 'يبدأ', 'rsyi-sa' ); ?></th>
+            <th><?php esc_html_e( 'ينتهي', 'rsyi-sa' ); ?></th>
+            <th style="text-align:center;"><?php esc_html_e( 'الدرجة', 'rsyi-sa' ); ?></th>
+            <th style="text-align:center;"><?php esc_html_e( 'التصحيح', 'rsyi-sa' ); ?></th>
             <th style="text-align:center;"><?php esc_html_e( 'الحالة', 'rsyi-sa' ); ?></th>
             <th><?php esc_html_e( 'إجراءات', 'rsyi-sa' ); ?></th>
         </tr>
     </thead>
     <tbody>
     <?php foreach ( $exams as $e ) :
-        $e_status = $e->status ?? 'published';
+        $e_status    = $e->status ?? 'published';
+        $now         = current_time( 'mysql' );
+        $is_open     = $e->starts_at && $e->ends_at && $now >= $e->starts_at && $now <= $e->ends_at;
+        $not_started = $e->starts_at && $now < $e->starts_at;
+        $ended       = $e->ends_at && $now > $e->ends_at;
     ?>
     <tr id="exam-row-<?php echo esc_attr( $e->id ); ?>">
-        <td><strong><?php echo esc_html( $e->title ); ?></strong></td>
+        <td>
+            <strong><?php echo esc_html( $e->title ); ?></strong>
+            <?php if ( $is_open ) : ?>
+            <span style="background:#d4edda; color:#155724; font-size:10px; padding:1px 6px; border-radius:8px; font-weight:600;">مفتوح</span>
+            <?php elseif ( $not_started ) : ?>
+            <span style="background:#fff3cd; color:#856404; font-size:10px; padding:1px 6px; border-radius:8px; font-weight:600;">لم يبدأ</span>
+            <?php elseif ( $ended ) : ?>
+            <span style="background:#f8d7da; color:#721c24; font-size:10px; padding:1px 6px; border-radius:8px; font-weight:600;">انتهى</span>
+            <?php endif; ?>
+        </td>
         <td><?php echo $e->subject ? esc_html( $e->subject ) : '—'; ?></td>
         <td><?php echo $e->cohort_name ? esc_html( $e->cohort_name ) : '—'; ?></td>
         <td><?php echo esc_html( $type_labels[ $e->exam_type ?? 'written' ] ?? 'نظري' ); ?></td>
-        <td><?php echo $e->exam_date ? esc_html( date_i18n( 'j M Y', strtotime( $e->exam_date ) ) ) : '—'; ?></td>
+        <td style="font-size:12px;">
+            <?php echo $e->starts_at ? esc_html( date_i18n( 'j M Y H:i', strtotime( $e->starts_at ) ) ) : '—'; ?>
+        </td>
+        <td style="font-size:12px;">
+            <?php echo $e->ends_at ? esc_html( date_i18n( 'j M Y H:i', strtotime( $e->ends_at ) ) ) : '—'; ?>
+        </td>
         <td style="text-align:center;"><?php echo esc_html( $e->max_score ); ?></td>
+        <td style="text-align:center; font-size:11px;">
+            <?php echo $e->auto_grade ? '<span style="color:#27ae60;">تلقائي</span>' : '<span style="color:#e67e22;">يدوي</span>'; ?>
+        </td>
         <td style="text-align:center;">
             <span style="color:<?php echo esc_attr( $status_colors[ $e_status ] ?? '#999' ); ?>; font-weight:600; font-size:12px;">
                 <?php echo esc_html( $status_labels[ $e_status ] ?? $e_status ); ?>
@@ -170,266 +197,11 @@ function rsyi_auto_grade( int $score, int $max ): string {
 
 <!-- ── Add exam tab ── -->
 <?php elseif ( $active_tab === 'add' ) : ?>
-<div style="max-width:620px; background:#fff; border:1px solid #ccd0d4; border-radius:4px; padding:24px;" dir="rtl">
-    <h2 style="margin-top:0;"><?php esc_html_e( 'إنشاء امتحان جديد', 'rsyi-sa' ); ?></h2>
-    <form id="rsyi-create-exam-form">
-        <?php wp_nonce_field( 'rsyi_sa_admin', '_nonce' ); ?>
-        <input type="hidden" name="action" value="rsyi_create_exam">
-
-        <table class="form-table">
-            <tr>
-                <th><?php esc_html_e( 'عنوان الامتحان', 'rsyi-sa' ); ?></th>
-                <td><input type="text" name="title" class="regular-text" required></td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'المادة', 'rsyi-sa' ); ?></th>
-                <td><input type="text" name="subject" class="regular-text"></td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'نوع الامتحان', 'rsyi-sa' ); ?></th>
-                <td>
-                    <select name="exam_type">
-                        <?php foreach ( $type_labels as $val => $lbl ) : ?>
-                        <option value="<?php echo esc_attr( $val ); ?>"><?php echo esc_html( $lbl ); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'الفوج', 'rsyi-sa' ); ?></th>
-                <td>
-                    <select name="cohort_id" style="min-width:200px;">
-                        <option value=""><?php esc_html_e( '— اختر الفوج —', 'rsyi-sa' ); ?></option>
-                        <?php foreach ( $cohorts as $c ) : ?>
-                        <option value="<?php echo esc_attr( $c->id ); ?>"><?php echo esc_html( $c->name ); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'تاريخ الامتحان', 'rsyi-sa' ); ?></th>
-                <td><input type="date" name="exam_date"></td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'المدة (دقيقة)', 'rsyi-sa' ); ?></th>
-                <td><input type="number" name="duration_min" min="1" style="width:90px;"></td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'الدرجة القصوى', 'rsyi-sa' ); ?></th>
-                <td><input type="number" name="max_score" value="100" min="1" style="width:90px;" required></td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'درجة النجاح', 'rsyi-sa' ); ?></th>
-                <td>
-                    <input type="number" name="passing_score" min="0" style="width:90px;" placeholder="<?php esc_attr_e( 'الافتراضي: 50%', 'rsyi-sa' ); ?>">
-                    <p class="description"><?php esc_html_e( 'اتركه فارغاً لاستخدام 50% من الدرجة القصوى.', 'rsyi-sa' ); ?></p>
-                </td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'الحالة', 'rsyi-sa' ); ?></th>
-                <td>
-                    <select name="status">
-                        <option value="published"><?php esc_html_e( 'منشور', 'rsyi-sa' ); ?></option>
-                        <option value="draft"><?php esc_html_e( 'مسودة', 'rsyi-sa' ); ?></option>
-                        <option value="closed"><?php esc_html_e( 'مغلق', 'rsyi-sa' ); ?></option>
-                    </select>
-                </td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'وصف', 'rsyi-sa' ); ?></th>
-                <td><textarea name="description" rows="3" style="width:100%;"></textarea></td>
-            </tr>
-        </table>
-
-        <p>
-            <button type="submit" class="button button-primary"><?php esc_html_e( 'إنشاء الامتحان', 'rsyi-sa' ); ?></button>
-            <span id="rsyi-exam-create-msg" style="margin-right:12px;"></span>
-        </p>
-    </form>
-</div>
+<?php include __DIR__ . '/partials/exam-form.php'; ?>
 
 <!-- ── Edit exam tab ── -->
 <?php elseif ( $active_tab === 'edit' && $selected_exam && current_user_can( 'rsyi_edit_exam' ) ) : ?>
-<div style="max-width:620px; background:#fff; border:1px solid #ccd0d4; border-radius:4px; padding:24px;" dir="rtl">
-    <h2 style="margin-top:0;"><?php echo esc_html( $selected_exam->title ); ?> — <?php esc_html_e( 'تعديل', 'rsyi-sa' ); ?></h2>
-    <form id="rsyi-update-exam-form">
-        <?php wp_nonce_field( 'rsyi_sa_admin', '_nonce' ); ?>
-        <input type="hidden" name="action" value="rsyi_update_exam">
-        <input type="hidden" name="exam_id" value="<?php echo esc_attr( $selected_exam->id ); ?>">
-
-        <table class="form-table">
-            <tr>
-                <th><?php esc_html_e( 'عنوان الامتحان', 'rsyi-sa' ); ?></th>
-                <td><input type="text" name="title" class="regular-text" value="<?php echo esc_attr( $selected_exam->title ); ?>" required></td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'المادة', 'rsyi-sa' ); ?></th>
-                <td><input type="text" name="subject" class="regular-text" value="<?php echo esc_attr( $selected_exam->subject ); ?>"></td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'نوع الامتحان', 'rsyi-sa' ); ?></th>
-                <td>
-                    <select name="exam_type">
-                        <?php foreach ( $type_labels as $val => $lbl ) : ?>
-                        <option value="<?php echo esc_attr( $val ); ?>" <?php selected( ( $selected_exam->exam_type ?? 'written' ), $val ); ?>>
-                            <?php echo esc_html( $lbl ); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'الفوج', 'rsyi-sa' ); ?></th>
-                <td>
-                    <select name="cohort_id" style="min-width:200px;">
-                        <option value=""><?php esc_html_e( '— اختر الفوج —', 'rsyi-sa' ); ?></option>
-                        <?php foreach ( $cohorts as $c ) : ?>
-                        <option value="<?php echo esc_attr( $c->id ); ?>" <?php selected( $selected_exam->cohort_id, $c->id ); ?>>
-                            <?php echo esc_html( $c->name ); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'تاريخ الامتحان', 'rsyi-sa' ); ?></th>
-                <td><input type="date" name="exam_date" value="<?php echo esc_attr( $selected_exam->exam_date ); ?>"></td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'المدة (دقيقة)', 'rsyi-sa' ); ?></th>
-                <td><input type="number" name="duration_min" min="1" style="width:90px;" value="<?php echo esc_attr( $selected_exam->duration_min ); ?>"></td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'الدرجة القصوى', 'rsyi-sa' ); ?></th>
-                <td><input type="number" name="max_score" min="1" style="width:90px;" value="<?php echo esc_attr( $selected_exam->max_score ); ?>" required></td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'درجة النجاح', 'rsyi-sa' ); ?></th>
-                <td>
-                    <input type="number" name="passing_score" min="0" style="width:90px;"
-                           value="<?php echo esc_attr( $selected_exam->passing_score ?? '' ); ?>"
-                           placeholder="<?php esc_attr_e( 'الافتراضي: 50%', 'rsyi-sa' ); ?>">
-                </td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'الحالة', 'rsyi-sa' ); ?></th>
-                <td>
-                    <select name="status">
-                        <?php foreach ( $status_labels as $val => $lbl ) : ?>
-                        <option value="<?php echo esc_attr( $val ); ?>" <?php selected( ( $selected_exam->status ?? 'published' ), $val ); ?>>
-                            <?php echo esc_html( $lbl ); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </td>
-            </tr>
-            <tr>
-                <th><?php esc_html_e( 'وصف', 'rsyi-sa' ); ?></th>
-                <td><textarea name="description" rows="3" style="width:100%;"><?php echo esc_textarea( $selected_exam->description ); ?></textarea></td>
-            </tr>
-        </table>
-
-        <p>
-            <button type="submit" class="button button-primary"><?php esc_html_e( 'حفظ التعديلات', 'rsyi-sa' ); ?></button>
-            <span id="rsyi-exam-update-msg" style="margin-right:12px;"></span>
-        </p>
-    </form>
-</div>
-
-<!-- ── Results tab ── -->
-<?php elseif ( $active_tab === 'results' && $selected_exam ) : ?>
-<h2 dir="rtl"><?php echo esc_html( $selected_exam->title ); ?> — <?php esc_html_e( 'إدخال النتائج', 'rsyi-sa' ); ?></h2>
-
-<div style="margin-bottom:14px; display:flex; align-items:center; gap:10px;">
-    <button type="button" class="button" id="rsyi-auto-grades-btn">
-        ⚡ <?php esc_html_e( 'احسب التقديرات تلقائياً', 'rsyi-sa' ); ?>
-    </button>
-    <?php if ( current_user_can( 'rsyi_export_exam_results' ) ) : ?>
-    <button type="button" class="button" id="rsyi-export-btn" data-exam-id="<?php echo esc_attr( $selected_exam_id ); ?>">
-        ⬇ <?php esc_html_e( 'تصدير CSV', 'rsyi-sa' ); ?>
-    </button>
-    <?php endif; ?>
-</div>
-
-<?php if ( empty( $exam_students ) ) : ?>
-<div class="notice notice-warning" dir="rtl"><p><?php esc_html_e( 'لا يوجد طلاب نشطون في فوج هذا الامتحان.', 'rsyi-sa' ); ?></p></div>
-<?php else : ?>
-<form id="rsyi-results-form" dir="rtl">
-    <?php wp_nonce_field( 'rsyi_sa_admin', '_nonce' ); ?>
-    <input type="hidden" name="action" value="rsyi_save_exam_results">
-    <input type="hidden" name="exam_id" value="<?php echo esc_attr( $selected_exam_id ); ?>">
-
-    <?php $max_score = (int) $selected_exam->max_score ?: 100;
-    $passing_score = isset( $selected_exam->passing_score ) && $selected_exam->passing_score !== null
-                     ? (int) $selected_exam->passing_score
-                     : (int) round( $max_score * 0.5 );
-    ?>
-
-    <table class="wp-list-table widefat fixed striped">
-        <thead>
-            <tr>
-                <th style="width:36px;">#</th>
-                <th><?php esc_html_e( 'الطالب', 'rsyi-sa' ); ?></th>
-                <th style="width:100px; text-align:center;"><?php printf( esc_html__( 'الدرجة / %d', 'rsyi-sa' ), $max_score ); ?></th>
-                <th style="width:70px; text-align:center;"><?php esc_html_e( 'التقدير', 'rsyi-sa' ); ?></th>
-                <th style="width:100px; text-align:center;"><?php esc_html_e( 'النتيجة', 'rsyi-sa' ); ?></th>
-                <th><?php esc_html_e( 'ملاحظات', 'rsyi-sa' ); ?></th>
-            </tr>
-        </thead>
-        <tbody>
-        <?php foreach ( $exam_students as $i => $st ) :
-            $res   = $exam_results_map[ (int) $st->profile_id ] ?? null;
-            $score = $res ? $res->score : '';
-            $grade = $res ? $res->grade : '';
-            $notes = $res ? $res->notes : '';
-            $is_passing = $res && $score !== '' ? ( (int) $score >= $passing_score ? 1 : 0 ) : null;
-        ?>
-        <tr class="rsyi-result-row" data-max="<?php echo esc_attr( $max_score ); ?>" data-passing="<?php echo esc_attr( $passing_score ); ?>">
-            <td><?php echo $i + 1; ?></td>
-            <td>
-                <strong><?php echo esc_html( $st->arabic_full_name ); ?></strong>
-                <input type="hidden" name="student_ids[]" value="<?php echo esc_attr( $st->profile_id ); ?>">
-            </td>
-            <td>
-                <input type="number" name="score_<?php echo esc_attr( $st->profile_id ); ?>"
-                       min="0" max="<?php echo esc_attr( $max_score ); ?>"
-                       value="<?php echo esc_attr( $score ); ?>"
-                       class="rsyi-score-input"
-                       style="width:70px; text-align:center;">
-            </td>
-            <td>
-                <input type="text" name="grade_<?php echo esc_attr( $st->profile_id ); ?>"
-                       value="<?php echo esc_attr( $grade ); ?>"
-                       class="rsyi-grade-input"
-                       style="width:54px; text-align:center;" maxlength="5" placeholder="A/B…">
-            </td>
-            <td style="text-align:center;">
-                <span class="rsyi-pass-badge" style="font-size:12px; font-weight:600; padding:2px 8px; border-radius:10px;
-                    <?php if ( $is_passing === null ) echo 'background:#eee; color:#999;';
-                    elseif ( $is_passing ) echo 'background:#d4edda; color:#155724;';
-                    else echo 'background:#f8d7da; color:#721c24;'; ?>">
-                    <?php if ( $is_passing === null ) echo '—';
-                    elseif ( $is_passing ) echo esc_html__( 'ناجح', 'rsyi-sa' );
-                    else echo esc_html__( 'راسب', 'rsyi-sa' ); ?>
-                </span>
-            </td>
-            <td>
-                <input type="text" name="notes_<?php echo esc_attr( $st->profile_id ); ?>"
-                       value="<?php echo esc_attr( $notes ); ?>" style="width:100%;">
-            </td>
-        </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
-
-    <p style="margin-top:16px;">
-        <button type="submit" class="button button-primary button-large" id="rsyi-results-save">
-            <?php esc_html_e( 'حفظ النتائج', 'rsyi-sa' ); ?>
-        </button>
-        <span id="rsyi-results-msg" style="margin-right:12px;"></span>
-    </p>
-</form>
-<?php endif; ?>
+<?php include __DIR__ . '/partials/exam-form.php'; ?>
 
 <!-- ── Questions tab ── -->
 <?php elseif ( $active_tab === 'questions' && $selected_exam && current_user_can( 'rsyi_manage_exams' ) ) : ?>
@@ -438,21 +210,102 @@ function rsyi_auto_grade( int $score, int $max ): string {
     <?php esc_html_e( 'أسئلة الامتحان', 'rsyi-sa' ); ?>
 </h2>
 
-<!-- Question form (add / edit) -->
-<div id="rsyi-q-form-wrap" style="background:#fff; border:1px solid #ccd0d4; border-radius:4px; padding:20px; max-width:700px; margin-bottom:20px; display:none;" dir="rtl">
+<!-- Question form -->
+<div id="rsyi-q-form-wrap" style="background:#fff; border:1px solid #ccd0d4; border-radius:4px; padding:20px; max-width:760px; margin-bottom:20px; display:none;" dir="rtl">
     <h3 id="rsyi-q-form-title" style="margin-top:0;"><?php esc_html_e( 'إضافة سؤال جديد', 'rsyi-sa' ); ?></h3>
     <input type="hidden" id="rsyi-q-id" value="">
     <input type="hidden" id="rsyi-q-exam-id" value="<?php echo esc_attr( $selected_exam_id ); ?>">
 
     <table class="form-table" style="margin:0;">
         <tr>
-            <th style="width:120px;"><?php esc_html_e( 'رقم السؤال', 'rsyi-sa' ); ?></th>
+            <th style="width:130px;"><?php esc_html_e( 'رقم السؤال', 'rsyi-sa' ); ?></th>
             <td><input type="number" id="rsyi-q-number" min="1" value="1" style="width:70px; text-align:center;"></td>
         </tr>
         <tr>
-            <th><?php esc_html_e( 'نص السؤال', 'rsyi-sa' ); ?></th>
-            <td><textarea id="rsyi-q-text" rows="4" style="width:100%; min-width:400px;" required></textarea></td>
+            <th><?php esc_html_e( 'نوع السؤال', 'rsyi-sa' ); ?></th>
+            <td>
+                <select id="rsyi-q-type" style="min-width:220px;">
+                    <?php foreach ( $q_type_labels as $val => $lbl ) : ?>
+                    <option value="<?php echo esc_attr( $val ); ?>"><?php echo esc_html( $lbl ); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <span style="margin-right:8px; font-size:12px; color:#0073aa;" id="rsyi-q-type-hint"></span>
+            </td>
         </tr>
+        <tr>
+            <th><?php esc_html_e( 'نص السؤال', 'rsyi-sa' ); ?></th>
+            <td><textarea id="rsyi-q-text" rows="3" style="width:100%; min-width:460px;" required></textarea></td>
+        </tr>
+
+        <!-- ── MCQ options ── -->
+        <tr id="rsyi-q-mcq-row" style="display:none;">
+            <th><?php esc_html_e( 'الخيارات', 'rsyi-sa' ); ?></th>
+            <td>
+                <div id="rsyi-mcq-options"></div>
+                <button type="button" id="rsyi-mcq-add-option" class="button button-small" style="margin-top:8px;">
+                    + <?php esc_html_e( 'إضافة خيار', 'rsyi-sa' ); ?>
+                </button>
+                <p class="description"><?php esc_html_e( 'ضع علامة ✓ على الإجابة الصحيحة.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── True/False ── -->
+        <tr id="rsyi-q-tf-row" style="display:none;">
+            <th><?php esc_html_e( 'الإجابة الصحيحة', 'rsyi-sa' ); ?></th>
+            <td>
+                <label style="margin-left:16px;"><input type="radio" name="rsyi_tf_answer" value="true"> صح ✓</label>
+                <label><input type="radio" name="rsyi_tf_answer" value="false"> خطأ ✗</label>
+            </td>
+        </tr>
+
+        <!-- ── Matching pairs ── -->
+        <tr id="rsyi-q-matching-row" style="display:none;">
+            <th><?php esc_html_e( 'أزواج التوصيل', 'rsyi-sa' ); ?></th>
+            <td>
+                <div id="rsyi-matching-pairs"></div>
+                <button type="button" id="rsyi-matching-add-pair" class="button button-small" style="margin-top:8px;">
+                    + <?php esc_html_e( 'إضافة زوج', 'rsyi-sa' ); ?>
+                </button>
+                <p class="description"><?php esc_html_e( 'العمود الأول: العبارة — العمود الثاني: المطابق الصحيح.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── Fill blank ── -->
+        <tr id="rsyi-q-fill-row" style="display:none;">
+            <th><?php esc_html_e( 'الإجابة الصحيحة', 'rsyi-sa' ); ?></th>
+            <td>
+                <input type="text" id="rsyi-q-fill-answer" style="width:100%; max-width:380px;" placeholder="<?php esc_attr_e( 'اكتب الإجابة المقبولة...', 'rsyi-sa' ); ?>">
+                <p class="description"><?php esc_html_e( 'التصحيح لا يفرق بين الحروف الكبيرة والصغيرة.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── Short answer / Essay (reference) ── -->
+        <tr id="rsyi-q-ref-row" style="display:none;">
+            <th><?php esc_html_e( 'نموذج الإجابة', 'rsyi-sa' ); ?></th>
+            <td>
+                <textarea id="rsyi-q-ref-answer" rows="3" style="width:100%;" placeholder="<?php esc_attr_e( 'للمصحح فقط — لا تصحيح تلقائي.', 'rsyi-sa' ); ?>"></textarea>
+            </td>
+        </tr>
+
+        <!-- ── Ordering ── -->
+        <tr id="rsyi-q-ordering-row" style="display:none;">
+            <th><?php esc_html_e( 'العناصر بالترتيب الصحيح', 'rsyi-sa' ); ?></th>
+            <td>
+                <div id="rsyi-ordering-items"></div>
+                <button type="button" id="rsyi-ordering-add-item" class="button button-small" style="margin-top:8px;">
+                    + <?php esc_html_e( 'إضافة عنصر', 'rsyi-sa' ); ?>
+                </button>
+                <p class="description"><?php esc_html_e( 'أضف العناصر بالترتيب الصحيح.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── Explanation ── -->
+        <tr>
+            <th><?php esc_html_e( 'شرح الإجابة (اختياري)', 'rsyi-sa' ); ?></th>
+            <td><textarea id="rsyi-q-explanation" rows="2" style="width:100%;" placeholder="<?php esc_attr_e( 'يُعرض للطالب بعد التصحيح...', 'rsyi-sa' ); ?>"></textarea></td>
+        </tr>
+
+        <!-- ── Image ── -->
         <tr>
             <th><?php esc_html_e( 'صورة (اختياري)', 'rsyi-sa' ); ?></th>
             <td>
@@ -464,10 +317,12 @@ function rsyi_auto_grade( int $score, int $max ): string {
                     </button>
                 </div>
                 <button type="button" id="rsyi-q-select-image" class="button">
-                    🖼 <?php esc_html_e( 'اختر صورة من المكتبة', 'rsyi-sa' ); ?>
+                    🖼 <?php esc_html_e( 'اختر صورة', 'rsyi-sa' ); ?>
                 </button>
             </td>
         </tr>
+
+        <!-- ── Marks ── -->
         <tr>
             <th><?php esc_html_e( 'الدرجة', 'rsyi-sa' ); ?></th>
             <td><input type="number" id="rsyi-q-marks" min="0" step="0.5" value="1" style="width:80px; text-align:center;"></td>
@@ -481,14 +336,12 @@ function rsyi_auto_grade( int $score, int $max ): string {
     </p>
 </div>
 
-<!-- Add button -->
 <p>
     <button type="button" id="rsyi-q-add-btn" class="button button-primary">
         + <?php esc_html_e( 'إضافة سؤال جديد', 'rsyi-sa' ); ?>
     </button>
 </p>
 
-<!-- Questions list -->
 <div id="rsyi-questions-list" dir="rtl">
     <p style="color:#888;"><?php esc_html_e( 'جارٍ تحميل الأسئلة…', 'rsyi-sa' ); ?></p>
 </div>
@@ -501,56 +354,212 @@ jQuery(function($){
     var ajaxUrl = rsyiSA.ajaxUrl;
     var mediaFrame;
 
+    var qTypeHints = {
+        mcq:          '<?php echo esc_js( __( 'أضف خيارات وضع علامة على الصحيح — تصحيح تلقائي', 'rsyi-sa' ) ); ?>',
+        true_false:   '<?php echo esc_js( __( 'اختر الإجابة الصحيحة — تصحيح تلقائي', 'rsyi-sa' ) ); ?>',
+        matching:     '<?php echo esc_js( __( 'أضف أزواج التوصيل — تصحيح تلقائي', 'rsyi-sa' ) ); ?>',
+        fill_blank:   '<?php echo esc_js( __( 'اكتب الإجابة الصحيحة — تصحيح تلقائي', 'rsyi-sa' ) ); ?>',
+        short_answer: '<?php echo esc_js( __( 'إجابة قصيرة — تصحيح يدوي بالمدرس', 'rsyi-sa' ) ); ?>',
+        essay:        '<?php echo esc_js( __( 'إجابة مقالية — تصحيح يدوي بالمدرس', 'rsyi-sa' ) ); ?>',
+        ordering:     '<?php echo esc_js( __( 'ضع العناصر بالترتيب الصحيح — تصحيح تلقائي', 'rsyi-sa' ) ); ?>',
+    };
+
+    // ── Question type change ──────────────────────────────────────────────────
+    function updateTypeFields(type) {
+        $('#rsyi-q-mcq-row, #rsyi-q-tf-row, #rsyi-q-matching-row, #rsyi-q-fill-row, #rsyi-q-ref-row, #rsyi-q-ordering-row').hide();
+        $('#rsyi-q-type-hint').text(qTypeHints[type] || '');
+        switch(type) {
+            case 'mcq':          $('#rsyi-q-mcq-row').show(); break;
+            case 'true_false':   $('#rsyi-q-tf-row').show(); break;
+            case 'matching':     $('#rsyi-q-matching-row').show(); break;
+            case 'fill_blank':   $('#rsyi-q-fill-row').show(); break;
+            case 'short_answer':
+            case 'essay':        $('#rsyi-q-ref-row').show(); break;
+            case 'ordering':     $('#rsyi-q-ordering-row').show(); break;
+        }
+    }
+
+    $('#rsyi-q-type').on('change', function(){ updateTypeFields($(this).val()); });
+    updateTypeFields($('#rsyi-q-type').val());
+
+    // ── MCQ helpers ───────────────────────────────────────────────────────────
+    function addMcqOption(text, isCorrect) {
+        var idx = $('#rsyi-mcq-options .rsyi-mcq-opt').length;
+        var html = '<div class="rsyi-mcq-opt" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">' +
+            '<input type="radio" name="rsyi_mcq_correct" value="' + idx + '"' + (isCorrect ? ' checked' : '') + ' title="الإجابة الصحيحة" style="cursor:pointer;">' +
+            '<input type="text" class="rsyi-mcq-opt-text regular-text" value="' + $('<div>').text(text||'').html() + '" placeholder="نص الخيار..." style="flex:1;">' +
+            '<button type="button" class="button button-small rsyi-mcq-remove" style="color:#a00; border-color:#a00;">✕</button>' +
+            '</div>';
+        $('#rsyi-mcq-options').append(html);
+    }
+
+    $('#rsyi-mcq-add-option').on('click', function(){ addMcqOption('', false); });
+    $(document).on('click', '.rsyi-mcq-remove', function(){ $(this).closest('.rsyi-mcq-opt').remove(); });
+
+    // ── Matching helpers ──────────────────────────────────────────────────────
+    function addMatchingPair(premise, match) {
+        var html = '<div class="rsyi-match-pair" style="display:flex; gap:8px; margin-bottom:6px;">' +
+            '<input type="text" class="rsyi-premise regular-text" value="' + $('<div>').text(premise||'').html() + '" placeholder="العبارة..." style="flex:1;">' +
+            '<span style="line-height:32px; font-size:16px; color:#0073aa;">↔</span>' +
+            '<input type="text" class="rsyi-match regular-text" value="' + $('<div>').text(match||'').html() + '" placeholder="المطابق الصحيح..." style="flex:1;">' +
+            '<button type="button" class="button button-small rsyi-match-remove" style="color:#a00; border-color:#a00;">✕</button>' +
+            '</div>';
+        $('#rsyi-matching-pairs').append(html);
+    }
+
+    $('#rsyi-matching-add-pair').on('click', function(){ addMatchingPair('', ''); });
+    $(document).on('click', '.rsyi-match-remove', function(){ $(this).closest('.rsyi-match-pair').remove(); });
+
+    // ── Ordering helpers ──────────────────────────────────────────────────────
+    function addOrderingItem(text) {
+        var idx = $('#rsyi-ordering-items .rsyi-order-item').length + 1;
+        var html = '<div class="rsyi-order-item" style="display:flex; gap:8px; margin-bottom:6px; align-items:center;">' +
+            '<span style="font-weight:700; color:#888; width:20px; text-align:center;">' + idx + '</span>' +
+            '<input type="text" class="rsyi-order-text regular-text" value="' + $('<div>').text(text||'').html() + '" placeholder="نص العنصر..." style="flex:1;">' +
+            '<button type="button" class="button button-small rsyi-order-remove" style="color:#a00; border-color:#a00;">✕</button>' +
+            '</div>';
+        $('#rsyi-ordering-items').append(html);
+    }
+
+    $('#rsyi-ordering-add-item').on('click', function(){ addOrderingItem(''); });
+    $(document).on('click', '.rsyi-order-remove', function(){ $(this).closest('.rsyi-order-item').remove(); });
+
+    // ── Build options / correct_answer from UI ────────────────────────────────
+    function getOptionsAndAnswer() {
+        var type = $('#rsyi-q-type').val();
+        var options = null, correct_answer = null;
+
+        if (type === 'mcq') {
+            var opts = [];
+            var correctIdx = parseInt($('input[name="rsyi_mcq_correct"]:checked').val());
+            $('#rsyi-mcq-options .rsyi-mcq-opt').each(function(i){
+                opts.push({ text: $(this).find('.rsyi-mcq-opt-text').val(), correct: (i === correctIdx) });
+            });
+            options = JSON.stringify(opts);
+        } else if (type === 'true_false') {
+            correct_answer = $('input[name="rsyi_tf_answer"]:checked').val() || 'true';
+        } else if (type === 'matching') {
+            var pairs = [];
+            $('#rsyi-matching-pairs .rsyi-match-pair').each(function(){
+                pairs.push({ premise: $(this).find('.rsyi-premise').val(), match: $(this).find('.rsyi-match').val() });
+            });
+            options = JSON.stringify(pairs);
+        } else if (type === 'fill_blank') {
+            correct_answer = $('#rsyi-q-fill-answer').val();
+        } else if (type === 'short_answer' || type === 'essay') {
+            correct_answer = $('#rsyi-q-ref-answer').val();
+        } else if (type === 'ordering') {
+            var items = [];
+            $('#rsyi-ordering-items .rsyi-order-item').each(function(i){
+                items.push({ text: $(this).find('.rsyi-order-text').val(), order: i + 1 });
+            });
+            options = JSON.stringify(items);
+        }
+
+        return { options: options, correct_answer: correct_answer };
+    }
+
+    // ── Load & populate form for editing ─────────────────────────────────────
+    function resetForm() {
+        $('#rsyi-q-id').val('');
+        $('#rsyi-q-number').val( $('#rsyi-questions-list table tbody tr').length + 1 );
+        $('#rsyi-q-text').val('');
+        $('#rsyi-q-type').val('essay').trigger('change');
+        $('#rsyi-q-marks').val('1');
+        $('#rsyi-q-explanation').val('');
+        $('#rsyi-q-image-id').val('');
+        $('#rsyi-q-image-preview').hide();
+        $('#rsyi-q-fill-answer').val('');
+        $('#rsyi-q-ref-answer').val('');
+        $('#rsyi-mcq-options').empty();
+        $('#rsyi-matching-pairs').empty();
+        $('#rsyi-ordering-items').empty();
+        $('input[name="rsyi_tf_answer"]').prop('checked', false);
+        $('#rsyi-q-form-title').text('<?php echo esc_js( __( 'إضافة سؤال جديد', 'rsyi-sa' ) ); ?>');
+        $('#rsyi-q-msg').text('');
+    }
+
+    function populateForm(q) {
+        $('#rsyi-q-id').val(q.id);
+        $('#rsyi-q-number').val(q.question_number);
+        $('#rsyi-q-text').val(q.question_text);
+        $('#rsyi-q-marks').val(q.marks);
+        $('#rsyi-q-explanation').val(q.explanation || '');
+        $('#rsyi-q-type').val(q.question_type || 'essay').trigger('change');
+        $('#rsyi-q-form-title').text('<?php echo esc_js( __( 'تعديل السؤال', 'rsyi-sa' ) ); ?> #' + q.question_number);
+
+        // Image
+        if (q.image_url) {
+            $('#rsyi-q-image-id').val(q.image_id);
+            $('#rsyi-q-image-thumb').attr('src', q.image_url);
+            $('#rsyi-q-image-preview').show();
+        } else {
+            $('#rsyi-q-image-id').val('');
+            $('#rsyi-q-image-preview').hide();
+        }
+
+        var type = q.question_type || 'essay';
+        var opts = q.options ? JSON.parse(q.options) : null;
+
+        if (type === 'mcq' && Array.isArray(opts)) {
+            $('#rsyi-mcq-options').empty();
+            opts.forEach(function(o, i){ addMcqOption(o.text, o.correct); });
+        } else if (type === 'true_false') {
+            $('input[name="rsyi_tf_answer"][value="' + (q.correct_answer||'true') + '"]').prop('checked', true);
+        } else if (type === 'matching' && Array.isArray(opts)) {
+            $('#rsyi-matching-pairs').empty();
+            opts.forEach(function(p){ addMatchingPair(p.premise, p.match); });
+        } else if (type === 'fill_blank') {
+            $('#rsyi-q-fill-answer').val(q.correct_answer || '');
+        } else if (type === 'short_answer' || type === 'essay') {
+            $('#rsyi-q-ref-answer').val(q.correct_answer || '');
+        } else if (type === 'ordering' && Array.isArray(opts)) {
+            $('#rsyi-ordering-items').empty();
+            opts.sort(function(a,b){ return a.order - b.order; });
+            opts.forEach(function(o){ addOrderingItem(o.text); });
+        }
+
+        $('#rsyi-q-msg').text('');
+    }
+
     // ── Load questions list ───────────────────────────────────────────────────
+    var typeLabels = <?php echo wp_json_encode( $q_type_labels ); ?>;
+
     function loadQuestions() {
         $.post( ajaxUrl, { action: 'rsyi_get_questions', exam_id: examId, _nonce: nonce }, function(res) {
             if ( ! res.success ) { $('#rsyi-questions-list').html('<p style="color:red;">' + res.data.message + '</p>'); return; }
             var rows = res.data;
             if ( ! rows.length ) {
-                $('#rsyi-questions-list').html('<p style="color:#888;"><?php echo esc_js( __( 'لا توجد أسئلة بعد. أضف سؤالاً جديداً.', 'rsyi-sa' ) ); ?></p>');
+                $('#rsyi-questions-list').html('<p style="color:#888;"><?php echo esc_js( __( 'لا توجد أسئلة بعد.', 'rsyi-sa' ) ); ?></p>');
                 return;
             }
             var html = '<table class="wp-list-table widefat fixed striped"><thead><tr>';
-            html += '<th style="width:50px; text-align:center;">#</th>';
+            html += '<th style="width:40px; text-align:center;">#</th>';
+            html += '<th style="width:80px; text-align:center;"><?php echo esc_js( __( 'النوع', 'rsyi-sa' ) ); ?></th>';
             html += '<th><?php echo esc_js( __( 'السؤال', 'rsyi-sa' ) ); ?></th>';
-            html += '<th style="width:90px; text-align:center;"><?php echo esc_js( __( 'صورة', 'rsyi-sa' ) ); ?></th>';
-            html += '<th style="width:70px; text-align:center;"><?php echo esc_js( __( 'الدرجة', 'rsyi-sa' ) ); ?></th>';
+            html += '<th style="width:60px; text-align:center;"><?php echo esc_js( __( 'الدرجة', 'rsyi-sa' ) ); ?></th>';
             html += '<th style="width:120px;"><?php echo esc_js( __( 'إجراءات', 'rsyi-sa' ) ); ?></th>';
             html += '</tr></thead><tbody>';
             $.each( rows, function(i, q) {
+                var typeLbl = typeLabels[q.question_type] || q.question_type;
                 html += '<tr id="q-row-' + q.id + '">';
                 html += '<td style="text-align:center; font-weight:700;">' + q.question_number + '</td>';
-                html += '<td>' + $('<div>').text(q.question_text).html().replace(/\n/g,'<br>') + '</td>';
-                html += '<td style="text-align:center;">';
-                if ( q.image_url ) {
-                    html += '<img src="' + q.image_url + '" style="max-width:60px; max-height:50px; border-radius:3px; border:1px solid #ddd; cursor:pointer;" onclick="window.open(this.src)">';
-                } else {
-                    html += '<span style="color:#bbb;">—</span>';
-                }
-                html += '</td>';
+                html += '<td style="text-align:center; font-size:11px; color:#0073aa;">' + typeLbl + '</td>';
+                html += '<td>' + $('<div>').text(q.question_text).html().replace(/\n/g,'<br>').substring(0,200) + '</td>';
                 html += '<td style="text-align:center;">' + parseFloat(q.marks) + '</td>';
-                html += '<td><button class="button button-small rsyi-q-edit" data-q=\'' + JSON.stringify(q) + '\'><?php echo esc_js( __( 'تعديل', 'rsyi-sa' ) ); ?></button> ';
+                html += '<td><button class="button button-small rsyi-q-edit" data-q=\'' + JSON.stringify(q).replace(/'/g,"&#39;") + '\'><?php echo esc_js( __( 'تعديل', 'rsyi-sa' ) ); ?></button> ';
                 html += '<button class="button button-small rsyi-q-delete" data-id="' + q.id + '" style="color:#a00; border-color:#a00;"><?php echo esc_js( __( 'حذف', 'rsyi-sa' ) ); ?></button></td>';
                 html += '</tr>';
             });
             html += '</tbody></table>';
+            // Total marks
+            var total = rows.reduce(function(s, q){ return s + parseFloat(q.marks); }, 0);
+            html += '<p dir="rtl" style="color:#0073aa; font-weight:600; margin-top:8px;"><?php echo esc_js( __( 'مجموع الدرجات:', 'rsyi-sa' ) ); ?> ' + total.toFixed(2) + '</p>';
             $('#rsyi-questions-list').html(html);
         });
     }
 
     loadQuestions();
-
-    // ── Show/hide form ────────────────────────────────────────────────────────
-    function resetForm() {
-        $('#rsyi-q-id').val('');
-        $('#rsyi-q-number').val( parseInt($('#rsyi-questions-list table tbody tr').length || 0) + 1 );
-        $('#rsyi-q-text').val('');
-        $('#rsyi-q-image-id').val('');
-        $('#rsyi-q-image-preview').hide();
-        $('#rsyi-q-marks').val('1');
-        $('#rsyi-q-form-title').text('<?php echo esc_js( __( 'إضافة سؤال جديد', 'rsyi-sa' ) ); ?>');
-        $('#rsyi-q-msg').text('');
-    }
 
     $('#rsyi-q-add-btn').on('click', function(){
         resetForm();
@@ -558,31 +567,15 @@ jQuery(function($){
         $('html, body').animate({scrollTop: $('#rsyi-q-form-wrap').offset().top - 40}, 300);
     });
 
-    $('#rsyi-q-cancel').on('click', function(){
-        $('#rsyi-q-form-wrap').slideUp(200);
-    });
+    $('#rsyi-q-cancel').on('click', function(){ $('#rsyi-q-form-wrap').slideUp(200); });
 
-    // ── Edit question ─────────────────────────────────────────────────────────
     $(document).on('click', '.rsyi-q-edit', function(){
         var q = $(this).data('q');
-        $('#rsyi-q-id').val(q.id);
-        $('#rsyi-q-number').val(q.question_number);
-        $('#rsyi-q-text').val(q.question_text);
-        $('#rsyi-q-image-id').val(q.image_id || '');
-        $('#rsyi-q-marks').val(q.marks);
-        $('#rsyi-q-form-title').text('<?php echo esc_js( __( 'تعديل السؤال', 'rsyi-sa' ) ); ?> #' + q.question_number);
-        if ( q.image_url ) {
-            $('#rsyi-q-image-thumb').attr('src', q.image_url);
-            $('#rsyi-q-image-preview').show();
-        } else {
-            $('#rsyi-q-image-preview').hide();
-        }
-        $('#rsyi-q-msg').text('');
+        populateForm(q);
         $('#rsyi-q-form-wrap').slideDown(200);
         $('html, body').animate({scrollTop: $('#rsyi-q-form-wrap').offset().top - 40}, 300);
     });
 
-    // ── Delete question ───────────────────────────────────────────────────────
     $(document).on('click', '.rsyi-q-delete', function(){
         if ( ! confirm('<?php echo esc_js( __( 'حذف هذا السؤال نهائياً؟', 'rsyi-sa' ) ); ?>') ) return;
         var id = $(this).data('id');
@@ -596,32 +589,23 @@ jQuery(function($){
     $('#rsyi-q-select-image').on('click', function(e){
         e.preventDefault();
         if ( mediaFrame ) { mediaFrame.open(); return; }
-        mediaFrame = wp.media({
-            title:    '<?php echo esc_js( __( 'اختر صورة السؤال', 'rsyi-sa' ) ); ?>',
-            button:   { text: '<?php echo esc_js( __( 'اختر الصورة', 'rsyi-sa' ) ); ?>' },
-            multiple: false,
-            library:  { type: 'image' }
-        });
+        mediaFrame = wp.media({ title: '<?php echo esc_js( __( 'اختر صورة السؤال', 'rsyi-sa' ) ); ?>', button: { text: '<?php echo esc_js( __( 'اختر', 'rsyi-sa' ) ); ?>' }, multiple: false, library: { type: 'image' } });
         mediaFrame.on('select', function(){
             var att = mediaFrame.state().get('selection').first().toJSON();
             $('#rsyi-q-image-id').val(att.id);
-            var thumbUrl = att.sizes && att.sizes.medium ? att.sizes.medium.url : att.url;
-            $('#rsyi-q-image-thumb').attr('src', thumbUrl);
+            $('#rsyi-q-image-thumb').attr('src', att.sizes && att.sizes.medium ? att.sizes.medium.url : att.url);
             $('#rsyi-q-image-preview').show();
         });
         mediaFrame.open();
     });
-
-    $('#rsyi-q-remove-image').on('click', function(){
-        $('#rsyi-q-image-id').val('');
-        $('#rsyi-q-image-thumb').attr('src','');
-        $('#rsyi-q-image-preview').hide();
-    });
+    $('#rsyi-q-remove-image').on('click', function(){ $('#rsyi-q-image-id').val(''); $('#rsyi-q-image-preview').hide(); });
 
     // ── Save question ─────────────────────────────────────────────────────────
     $('#rsyi-q-save').on('click', function(){
         var text = $.trim($('#rsyi-q-text').val());
         if ( ! text ) { $('#rsyi-q-msg').css('color','red').text('<?php echo esc_js( __( 'نص السؤال مطلوب.', 'rsyi-sa' ) ); ?>'); return; }
+
+        var oa = getOptionsAndAnswer();
 
         var data = {
             action:          'rsyi_save_question',
@@ -630,6 +614,10 @@ jQuery(function($){
             question_id:     $('#rsyi-q-id').val(),
             question_number: $('#rsyi-q-number').val(),
             question_text:   text,
+            question_type:   $('#rsyi-q-type').val(),
+            options:         oa.options || '',
+            correct_answer:  oa.correct_answer || '',
+            explanation:     $('#rsyi-q-explanation').val(),
             image_id:        $('#rsyi-q-image-id').val() || 0,
             marks:           $('#rsyi-q-marks').val(),
         };
@@ -639,16 +627,182 @@ jQuery(function($){
             $btn.prop('disabled', false);
             $('#rsyi-q-msg').css('color', res.success ? 'green' : 'red').text(res.data.message);
             if ( res.success ) {
-                setTimeout(function(){
-                    $('#rsyi-q-form-wrap').slideUp(200);
-                    loadQuestions();
-                }, 600);
+                setTimeout(function(){ $('#rsyi-q-form-wrap').slideUp(200); loadQuestions(); }, 600);
             }
         });
     });
 
 });
 </script>
+
+<!-- ── Results tab ── -->
+<?php elseif ( $active_tab === 'results' && $selected_exam ) : ?>
+<h2 dir="rtl"><?php echo esc_html( $selected_exam->title ); ?> — <?php esc_html_e( 'النتائج', 'rsyi-sa' ); ?></h2>
+
+<?php
+$max_score    = (int) ( $selected_exam->max_score ?: 100 );
+$passing_score = isset( $selected_exam->passing_score ) && $selected_exam->passing_score !== null
+                 ? (int) $selected_exam->passing_score
+                 : (int) round( $max_score * 0.5 );
+$is_auto_grade   = ! empty( $selected_exam->auto_grade );
+$allow_regrade   = ! empty( $selected_exam->allow_regrade );
+
+// Count submissions
+$submissions_count = (int) $wpdb->get_var( $wpdb->prepare(
+    "SELECT COUNT(*) FROM {$wpdb->prefix}rsyi_exam_answers WHERE exam_id = %d",
+    $selected_exam_id
+) );
+?>
+
+<div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;" dir="rtl">
+    <?php if ( $is_auto_grade ) : ?>
+    <button type="button" class="button button-primary" id="rsyi-auto-grade-btn"
+            data-exam-id="<?php echo esc_attr( $selected_exam_id ); ?>">
+        ⚡ <?php esc_html_e( 'تصحيح تلقائي الآن', 'rsyi-sa' ); ?>
+        <?php if ( $submissions_count ) : ?>
+        <span style="background:rgba(255,255,255,0.3); padding:0 6px; border-radius:10px; font-size:11px;"><?php echo esc_html( $submissions_count ); ?></span>
+        <?php endif; ?>
+    </button>
+    <?php endif; ?>
+
+    <button type="button" class="button" id="rsyi-auto-grades-btn">
+        📊 <?php esc_html_e( 'احسب التقديرات تلقائياً', 'rsyi-sa' ); ?>
+    </button>
+
+    <?php if ( current_user_can( 'rsyi_export_exam_results' ) ) : ?>
+    <button type="button" class="button" id="rsyi-export-btn" data-exam-id="<?php echo esc_attr( $selected_exam_id ); ?>">
+        ⬇ <?php esc_html_e( 'تصدير CSV', 'rsyi-sa' ); ?>
+    </button>
+    <?php endif; ?>
+
+    <span id="rsyi-auto-grade-msg" style="color:#27ae60; font-weight:600;"></span>
+</div>
+
+<div style="background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; padding:10px 14px; margin-bottom:16px; font-size:12px;" dir="rtl">
+    <?php if ( $is_auto_grade ) : ?>
+    <span style="color:#27ae60;">✓ <?php esc_html_e( 'التصحيح التلقائي مفعّل', 'rsyi-sa' ); ?></span>
+    <?php else : ?>
+    <span style="color:#e67e22;">✏ <?php esc_html_e( 'التصحيح اليدوي', 'rsyi-sa' ); ?></span>
+    <?php endif; ?>
+    &nbsp;|&nbsp;
+    <?php if ( $allow_regrade ) : ?>
+    <span style="color:#0073aa;">🔄 <?php esc_html_e( 'إعادة التصحيح مسموحة', 'rsyi-sa' ); ?></span>
+    <?php else : ?>
+    <span style="color:#999;">🔒 <?php esc_html_e( 'إعادة التصحيح مقيّدة', 'rsyi-sa' ); ?></span>
+    <?php endif; ?>
+    &nbsp;|&nbsp;
+    <?php if ( ! empty( $selected_exam->show_results ) ) : ?>
+    <span style="color:#27ae60;">👁 <?php esc_html_e( 'النتيجة تظهر للطالب', 'rsyi-sa' ); ?></span>
+    <?php else : ?>
+    <span style="color:#999;">🙈 <?php esc_html_e( 'النتيجة مخفية عن الطالب', 'rsyi-sa' ); ?></span>
+    <?php endif; ?>
+</div>
+
+<?php if ( empty( $exam_students ) ) : ?>
+<div class="notice notice-warning" dir="rtl"><p><?php esc_html_e( 'لا يوجد طلاب نشطون في فوج هذا الامتحان.', 'rsyi-sa' ); ?></p></div>
+<?php else : ?>
+<form id="rsyi-results-form" dir="rtl">
+    <?php wp_nonce_field( 'rsyi_sa_admin', '_nonce' ); ?>
+    <input type="hidden" name="action" value="rsyi_save_exam_results">
+    <input type="hidden" name="exam_id" value="<?php echo esc_attr( $selected_exam_id ); ?>">
+
+    <table class="wp-list-table widefat fixed striped">
+        <thead>
+            <tr>
+                <th style="width:34px;">#</th>
+                <th><?php esc_html_e( 'الطالب', 'rsyi-sa' ); ?></th>
+                <th style="width:40px; text-align:center;"><?php esc_html_e( 'سلّم؟', 'rsyi-sa' ); ?></th>
+                <th style="width:100px; text-align:center;"><?php printf( esc_html__( 'الدرجة / %d', 'rsyi-sa' ), $max_score ); ?></th>
+                <th style="width:65px; text-align:center;"><?php esc_html_e( 'التقدير', 'rsyi-sa' ); ?></th>
+                <th style="width:90px; text-align:center;"><?php esc_html_e( 'النتيجة', 'rsyi-sa' ); ?></th>
+                <th><?php esc_html_e( 'ملاحظات', 'rsyi-sa' ); ?></th>
+                <?php if ( $allow_regrade ) : ?>
+                <th style="width:80px; text-align:center;"><?php esc_html_e( 'إعادة تصحيح', 'rsyi-sa' ); ?></th>
+                <?php endif; ?>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ( $exam_students as $i => $st ) :
+            $res        = $exam_results_map[ (int) $st->profile_id ] ?? null;
+            $score      = $res ? $res->score : '';
+            $grade      = $res ? $res->grade : '';
+            $notes      = $res ? $res->notes : '';
+            $submitted  = $res && $res->submitted_at;
+            $is_passing = ( $res && $score !== '' && $score !== null ) ? ( (int) $score >= $passing_score ? 1 : 0 ) : null;
+            $regraded   = $res && $res->regraded_by;
+        ?>
+        <tr class="rsyi-result-row"
+            data-max="<?php echo esc_attr( $max_score ); ?>"
+            data-passing="<?php echo esc_attr( $passing_score ); ?>"
+            data-student="<?php echo esc_attr( $st->profile_id ); ?>"
+            data-exam="<?php echo esc_attr( $selected_exam_id ); ?>">
+            <td><?php echo $i + 1; ?></td>
+            <td>
+                <strong><?php echo esc_html( $st->arabic_full_name ); ?></strong>
+                <input type="hidden" name="student_ids[]" value="<?php echo esc_attr( $st->profile_id ); ?>">
+                <?php if ( $regraded ) : ?>
+                <br><span style="font-size:10px; color:#e67e22;">🔄 أُعيد تصحيحه</span>
+                <?php elseif ( $res && $res->auto_graded ) : ?>
+                <br><span style="font-size:10px; color:#0073aa;">⚡ تلقائي</span>
+                <?php endif; ?>
+            </td>
+            <td style="text-align:center;">
+                <?php if ( $submitted ) : ?>
+                <span title="<?php echo esc_attr( date_i18n( 'j M H:i', strtotime( $res->submitted_at ) ) ); ?>" style="color:#27ae60; font-size:16px;">✓</span>
+                <?php else : ?>
+                <span style="color:#bbb; font-size:14px;">—</span>
+                <?php endif; ?>
+            </td>
+            <td>
+                <input type="number" name="score_<?php echo esc_attr( $st->profile_id ); ?>"
+                       min="0" max="<?php echo esc_attr( $max_score ); ?>"
+                       value="<?php echo esc_attr( $score ?? '' ); ?>"
+                       class="rsyi-score-input"
+                       <?php echo ( ! $allow_regrade && $res ) ? 'readonly style="width:70px; text-align:center; background:#f8f9fa;"' : 'style="width:70px; text-align:center;"'; ?>>
+            </td>
+            <td>
+                <input type="text" name="grade_<?php echo esc_attr( $st->profile_id ); ?>"
+                       value="<?php echo esc_attr( $grade ); ?>"
+                       class="rsyi-grade-input"
+                       style="width:50px; text-align:center;" maxlength="5"
+                       <?php echo ( ! $allow_regrade && $res ) ? 'readonly' : ''; ?>>
+            </td>
+            <td style="text-align:center;">
+                <span class="rsyi-pass-badge" style="font-size:12px; font-weight:600; padding:2px 8px; border-radius:10px;
+                    <?php if ( $is_passing === null ) echo 'background:#eee; color:#999;';
+                    elseif ( $is_passing ) echo 'background:#d4edda; color:#155724;';
+                    else echo 'background:#f8d7da; color:#721c24;'; ?>">
+                    <?php if ( $is_passing === null ) echo '—';
+                    elseif ( $is_passing ) echo esc_html__( 'ناجح', 'rsyi-sa' );
+                    else echo esc_html__( 'راسب', 'rsyi-sa' ); ?>
+                </span>
+            </td>
+            <td>
+                <input type="text" name="notes_<?php echo esc_attr( $st->profile_id ); ?>"
+                       value="<?php echo esc_attr( $notes ); ?>" style="width:100%;"
+                       <?php echo ( ! $allow_regrade && $res ) ? 'readonly' : ''; ?>>
+            </td>
+            <?php if ( $allow_regrade ) : ?>
+            <td style="text-align:center;">
+                <button type="button" class="button button-small rsyi-regrade-btn"
+                        data-student="<?php echo esc_attr( $st->profile_id ); ?>">
+                    🔄
+                </button>
+            </td>
+            <?php endif; ?>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+
+    <p style="margin-top:16px;">
+        <button type="submit" class="button button-primary button-large" id="rsyi-results-save">
+            <?php esc_html_e( 'حفظ النتائج', 'rsyi-sa' ); ?>
+        </button>
+        <span id="rsyi-results-msg" style="margin-right:12px;"></span>
+    </p>
+</form>
+<?php endif; ?>
 
 <!-- ── Stats tab ── -->
 <?php elseif ( $active_tab === 'stats' && $selected_exam && current_user_can( 'rsyi_view_exam_stats' ) ) : ?>
@@ -664,7 +818,9 @@ jQuery(function($){
     // ── Create exam ────────────────────────────────────────────────────────────
     $('#rsyi-create-exam-form').on('submit', function(e){
         e.preventDefault();
+        var $btn = $(this).find('[type=submit]').prop('disabled', true);
         $.post(rsyiSA.ajaxUrl, $(this).serialize(), function(res){
+            $btn.prop('disabled', false);
             $('#rsyi-exam-create-msg').css('color', res.success ? 'green' : 'red').text(res.data.message);
             if(res.success) setTimeout(function(){ location.href = '?page=rsyi-exams&tab=list'; }, 1000);
         });
@@ -673,7 +829,9 @@ jQuery(function($){
     // ── Update exam ────────────────────────────────────────────────────────────
     $('#rsyi-update-exam-form').on('submit', function(e){
         e.preventDefault();
+        var $btn = $(this).find('[type=submit]').prop('disabled', true);
         $.post(rsyiSA.ajaxUrl, $(this).serialize(), function(res){
+            $btn.prop('disabled', false);
             $('#rsyi-exam-update-msg').css('color', res.success ? 'green' : 'red').text(res.data.message);
         });
     });
@@ -681,7 +839,7 @@ jQuery(function($){
     // ── Delete exam ────────────────────────────────────────────────────────────
     $(document).on('click', '.rsyi-delete-exam', function(){
         var id = $(this).data('exam-id');
-        if ( ! confirm('<?php echo esc_js( __( 'سيتم حذف الامتحان وجميع نتائجه. هل أنت متأكد؟', 'rsyi-sa' ) ); ?>') ) return;
+        if ( ! confirm('<?php echo esc_js( __( 'سيتم حذف الامتحان وجميع نتائجه وأسئلته وإجاباته. هل أنت متأكد؟', 'rsyi-sa' ) ); ?>') ) return;
         var $row = $('#exam-row-' + id);
         $.post(rsyiSA.ajaxUrl, { action: 'rsyi_delete_exam', exam_id: id, _nonce: rsyiSA.nonce }, function(res){
             if(res.success){ $row.fadeOut(400, function(){ $row.remove(); }); }
@@ -689,7 +847,7 @@ jQuery(function($){
         });
     });
 
-    // ── Auto-calculate grades ──────────────────────────────────────────────────
+    // ── Auto-calculate grades (client-side) ────────────────────────────────────
     $('#rsyi-auto-grades-btn').on('click', function(){
         $('.rsyi-result-row').each(function(){
             var $row    = $(this);
@@ -711,7 +869,7 @@ jQuery(function($){
         });
     });
 
-    // Update pass/fail badge on score change
+    // Update badge on score change
     $(document).on('input', '.rsyi-score-input', function(){
         var $row    = $(this).closest('.rsyi-result-row');
         var max     = parseInt($row.data('max')) || 100;
@@ -719,18 +877,42 @@ jQuery(function($){
         var s       = parseInt($(this).val());
         var $badge  = $row.find('.rsyi-pass-badge');
         if ( isNaN(s) ) { $badge.css({'background':'#eee','color':'#999'}).text('—'); return; }
-        if ( s >= passing ) {
-            $badge.css({'background':'#d4edda','color':'#155724'}).text('<?php echo esc_js( __( 'ناجح', 'rsyi-sa' ) ); ?>');
-        } else {
-            $badge.css({'background':'#f8d7da','color':'#721c24'}).text('<?php echo esc_js( __( 'راسب', 'rsyi-sa' ) ); ?>');
-        }
+        if ( s >= passing ) { $badge.css({'background':'#d4edda','color':'#155724'}).text('<?php echo esc_js( __( 'ناجح', 'rsyi-sa' ) ); ?>'); }
+        else { $badge.css({'background':'#f8d7da','color':'#721c24'}).text('<?php echo esc_js( __( 'راسب', 'rsyi-sa' ) ); ?>'); }
     });
 
-    // ── Save results ────────────────────────────────────────────────────────────
+    // ── Auto-grade via server ──────────────────────────────────────────────────
+    $('#rsyi-auto-grade-btn').on('click', function(){
+        var examId = $(this).data('exam-id');
+        if ( ! confirm('<?php echo esc_js( __( 'سيتم تصحيح إجابات جميع الطلاب تلقائياً. هل تريد المتابعة؟', 'rsyi-sa' ) ); ?>') ) return;
+        var $btn = $(this).prop('disabled', true).text('...');
+        $.post(rsyiSA.ajaxUrl, { action: 'rsyi_auto_grade_exam', exam_id: examId, _nonce: rsyiSA.nonce }, function(res){
+            $btn.prop('disabled', false).html('⚡ <?php echo esc_js( __( 'تصحيح تلقائي الآن', 'rsyi-sa' ) ); ?>');
+            if(res.success){ $('#rsyi-auto-grade-msg').text(res.data.message); setTimeout(function(){ location.reload(); }, 1200); }
+            else { alert(res.data.message); }
+        });
+    });
+
+    // ── Re-grade individual student ────────────────────────────────────────────
+    $(document).on('click', '.rsyi-regrade-btn', function(){
+        var $row      = $(this).closest('.rsyi-result-row');
+        var examId    = $row.data('exam');
+        var studentId = $row.data('student');
+        var score     = $row.find('.rsyi-score-input').val();
+        var notes     = $row.find('input[name^="notes_"]').val();
+        $.post(rsyiSA.ajaxUrl, {
+            action: 'rsyi_regrade_result', _nonce: rsyiSA.nonce,
+            exam_id: examId, student_id: studentId, score: score, notes: notes
+        }, function(res){
+            if(res.success){ $('#rsyi-results-msg').css('color','green').text(res.data.message); }
+            else { alert(res.data.message); }
+        });
+    });
+
+    // ── Save results (manual entry) ────────────────────────────────────────────
     $('#rsyi-results-form').on('submit', function(e){
         e.preventDefault();
-        var $btn = $('#rsyi-results-save');
-        $btn.prop('disabled', true);
+        var $btn = $('#rsyi-results-save').prop('disabled', true);
         $.post(rsyiSA.ajaxUrl, $(this).serialize(), function(res){
             $btn.prop('disabled', false);
             $('#rsyi-results-msg').css('color', res.success ? 'green' : 'red').text(res.data.message);
@@ -753,8 +935,11 @@ jQuery(function($){
 
     // ── Load stats ─────────────────────────────────────────────────────────────
     <?php if ( $active_tab === 'stats' && $selected_exam ) : ?>
-    var examId = <?php echo (int) $selected_exam_id; ?>;
-    $.post(rsyiSA.ajaxUrl, { action: 'rsyi_get_exam_stats', exam_id: examId, _nonce: rsyiSA.nonce }, function(res){
+    var examIdStats = <?php echo (int) $selected_exam_id; ?>;
+    var gradeColors = {'A+':'#155724','A':'#1e7e34','B':'#0c5460','C':'#856404','D':'#856404','F':'#721c24'};
+    var gradeBg     = {'A+':'#d4edda','A':'#d4edda','B':'#d1ecf1','C':'#fff3cd','D':'#ffeeba','F':'#f8d7da'};
+
+    $.post(rsyiSA.ajaxUrl, { action: 'rsyi_get_exam_stats', exam_id: examIdStats, _nonce: rsyiSA.nonce }, function(res){
         if(!res.success){ $('#rsyi-stats-container').html('<p style="color:red;">' + res.data.message + '</p>'); return; }
         var d = res.data;
         var html = '<div style="display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px;">';
@@ -765,48 +950,39 @@ jQuery(function($){
         html += statsCard(d.pass_pct + '%', '<?php echo esc_js( __( 'نسبة النجاح', 'rsyi-sa' ) ); ?>', d.pass_pct >= 50 ? '#27ae60' : '#e74c3c');
         html += '</div>';
 
-        // Grade distribution
         html += '<div style="background:#fff; border:1px solid #ccd0d4; border-radius:4px; padding:16px; margin-bottom:24px;">';
         html += '<h3 style="margin-top:0;"><?php echo esc_js( __( 'توزيع التقديرات', 'rsyi-sa' ) ); ?></h3>';
-        html += '<table style="width:100%; border-collapse:collapse;">';
-        html += '<tr style="background:#f6f7f7;"><th style="padding:8px; text-align:center;"><?php echo esc_js( __( 'التقدير', 'rsyi-sa' ) ); ?></th><th style="padding:8px; text-align:center;"><?php echo esc_js( __( 'العدد', 'rsyi-sa' ) ); ?></th><th style="padding:8px; text-align:center;"><?php echo esc_js( __( 'النسبة', 'rsyi-sa' ) ); ?></th></tr>';
-        var gradeColors = {'A+':'#155724','A':'#1e7e34','B':'#0c5460','C':'#856404','D':'#856404','F':'#721c24'};
-        var gradeBg     = {'A+':'#d4edda','A':'#d4edda','B':'#d1ecf1','C':'#fff3cd','D':'#ffeeba','F':'#f8d7da'};
+        html += '<table style="width:100%; border-collapse:collapse;"><tr style="background:#f6f7f7;"><th style="padding:8px; text-align:center;"><?php echo esc_js( __( 'التقدير', 'rsyi-sa' ) ); ?></th><th style="padding:8px; text-align:center;"><?php echo esc_js( __( 'العدد', 'rsyi-sa' ) ); ?></th><th style="padding:8px; text-align:center;"><?php echo esc_js( __( 'النسبة', 'rsyi-sa' ) ); ?></th></tr>';
         $.each(d.dist, function(g, n){
             var pct = d.count > 0 ? Math.round(n/d.count*100) : 0;
-            html += '<tr><td style="padding:8px; text-align:center;"><span style="background:' + (gradeBg[g]||'#eee') + '; color:' + (gradeColors[g]||'#333') + '; padding:2px 10px; border-radius:10px; font-weight:700;">' + g + '</span></td>';
-            html += '<td style="padding:8px; text-align:center; font-weight:700;">' + n + '</td>';
-            html += '<td style="padding:8px; text-align:center; color:#888;">' + pct + '%</td></tr>';
+            html += '<tr><td style="padding:8px; text-align:center;"><span style="background:'+(gradeBg[g]||'#eee')+'; color:'+(gradeColors[g]||'#333')+'; padding:2px 10px; border-radius:10px; font-weight:700;">'+g+'</span></td>';
+            html += '<td style="padding:8px; text-align:center; font-weight:700;">'+n+'</td>';
+            html += '<td style="padding:8px; text-align:center; color:#888;">'+pct+'%</td></tr>';
         });
         html += '</table></div>';
 
-        // Ranked students
         html += '<div style="background:#fff; border:1px solid #ccd0d4; border-radius:4px; padding:16px;">';
         html += '<h3 style="margin-top:0;"><?php echo esc_js( __( 'ترتيب الطلاب', 'rsyi-sa' ) ); ?></h3>';
         html += '<table class="wp-list-table widefat fixed striped"><thead><tr>';
-        html += '<th style="width:40px; text-align:center;">#</th>';
-        html += '<th><?php echo esc_js( __( 'الطالب', 'rsyi-sa' ) ); ?></th>';
+        html += '<th style="width:40px; text-align:center;">#</th><th><?php echo esc_js( __( 'الطالب', 'rsyi-sa' ) ); ?></th>';
         html += '<th style="text-align:center;"><?php echo esc_js( __( 'الدرجة', 'rsyi-sa' ) ); ?></th>';
         html += '<th style="text-align:center;"><?php echo esc_js( __( 'النسبة%', 'rsyi-sa' ) ); ?></th>';
         html += '<th style="text-align:center;"><?php echo esc_js( __( 'التقدير', 'rsyi-sa' ) ); ?></th>';
         html += '</tr></thead><tbody>';
         $.each(d.ranked, function(i, r){
-            html += '<tr><td style="text-align:center;">' + (i+1) + '</td>';
-            html += '<td>' + r.name + '</td>';
-            html += '<td style="text-align:center; font-weight:700;">' + r.score + '</td>';
-            html += '<td style="text-align:center;">' + r.pct + '%</td>';
-            html += '<td style="text-align:center;"><span style="background:' + (gradeBg[r.grade]||'#eee') + '; color:' + (gradeColors[r.grade]||'#333') + '; padding:2px 10px; border-radius:10px; font-weight:700;">' + r.grade + '</span></td>';
-            html += '</tr>';
+            html += '<tr><td style="text-align:center;">'+(i+1)+'</td><td>'+r.name+'</td>';
+            html += '<td style="text-align:center; font-weight:700;">'+r.score+'</td>';
+            html += '<td style="text-align:center;">'+r.pct+'%</td>';
+            html += '<td style="text-align:center;"><span style="background:'+(gradeBg[r.grade]||'#eee')+'; color:'+(gradeColors[r.grade]||'#333')+'; padding:2px 10px; border-radius:10px; font-weight:700;">'+r.grade+'</span></td></tr>';
         });
         html += '</tbody></table></div>';
-
         $('#rsyi-stats-container').html(html);
     });
 
     function statsCard(val, label, color){
-        return '<div style="background:#fff; border:1px solid #dee2e6; border-top:3px solid ' + color + '; border-radius:6px; padding:16px; text-align:center;">' +
-               '<div style="font-size:26px; font-weight:700; color:' + color + ';">' + val + '</div>' +
-               '<div style="font-size:12px; color:#888; margin-top:4px;">' + label + '</div></div>';
+        return '<div style="background:#fff; border:1px solid #dee2e6; border-top:3px solid '+color+'; border-radius:6px; padding:16px; text-align:center;">'+
+               '<div style="font-size:26px; font-weight:700; color:'+color+';">'+val+'</div>'+
+               '<div style="font-size:12px; color:#888; margin-top:4px;">'+label+'</div></div>';
     }
     <?php endif; ?>
 });

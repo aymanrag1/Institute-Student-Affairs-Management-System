@@ -30,6 +30,7 @@ class Shortcodes {
             'rsyi_portal_materials'          => 'render_materials',
             'rsyi_portal_grades'             => 'render_grades',
             'rsyi_portal_attendance_record'  => 'render_attendance_record',
+            'rsyi_portal_exams'              => 'render_exams',
         ];
         foreach ( $codes as $tag => $method ) {
             add_shortcode( $tag, [ __CLASS__, $method ] );
@@ -244,5 +245,118 @@ class Shortcodes {
         ) );
 
         return self::render_template( 'attendance-record', compact( 'profile', 'records' ) );
+    }
+
+    // ── Exam portal ───────────────────────────────────────────────────────────
+
+    public static function render_exams( $atts ): string {
+        $profile = self::require_student();
+        if ( ! $profile ) return '';
+
+        if ( ! current_user_can( 'rsyi_take_exam' ) ) {
+            return '<p>' . esc_html__( 'ليس لديك صلاحية الوصول للامتحانات.', 'rsyi-sa' ) . '</p>';
+        }
+
+        // If exam_id is provided, render the exam-taking page
+        $exam_id = absint( $_GET['exam_id'] ?? 0 );
+        if ( $exam_id ) {
+            return self::render_exam_take( $profile, $exam_id );
+        }
+
+        global $wpdb;
+        $now = current_time( 'mysql' );
+
+        // Get exams for this student's cohort (published + active)
+        $exams = $wpdb->get_results( $wpdb->prepare(
+            "SELECT e.*
+             FROM {$wpdb->prefix}rsyi_exams e
+             WHERE e.cohort_id = %d AND e.is_active = 1 AND e.status = 'published'
+             ORDER BY e.starts_at DESC",
+            (int) $profile->cohort_id
+        ) );
+
+        // Get this student's results
+        $results_raw = $wpdb->get_results( $wpdb->prepare(
+            "SELECT exam_id, score, grade, is_passing, submitted_at
+             FROM {$wpdb->prefix}rsyi_exam_results
+             WHERE student_id = %d",
+            (int) $profile->id
+        ) );
+        $results_map = [];
+        foreach ( $results_raw as $r ) {
+            $results_map[ (int) $r->exam_id ] = $r;
+        }
+
+        return self::render_template( 'exam-list', compact( 'profile', 'exams', 'results_map', 'now' ) );
+    }
+
+    private static function render_exam_take( object $profile, int $exam_id ): string {
+        global $wpdb;
+        $now = current_time( 'mysql' );
+
+        $exam = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}rsyi_exams WHERE id = %d AND is_active = 1 AND status = 'published'",
+            $exam_id
+        ) );
+
+        if ( ! $exam ) {
+            return '<div class="rsyi-notice rsyi-notice-error">' . esc_html__( 'الامتحان غير موجود أو غير متاح.', 'rsyi-sa' ) . '</div>';
+        }
+
+        // Check cohort match
+        if ( $exam->cohort_id && (int) $exam->cohort_id !== (int) $profile->cohort_id ) {
+            return '<div class="rsyi-notice rsyi-notice-error">' . esc_html__( 'هذا الامتحان ليس لفوجك.', 'rsyi-sa' ) . '</div>';
+        }
+
+        // Check already submitted
+        $submitted = $wpdb->get_row( $wpdb->prepare(
+            "SELECT score, grade, is_passing FROM {$wpdb->prefix}rsyi_exam_results WHERE exam_id = %d AND student_id = %d LIMIT 1",
+            $exam_id, (int) $profile->id
+        ) );
+        if ( $submitted ) {
+            return self::render_template( 'exam-submitted', compact( 'exam', 'submitted', 'profile' ) );
+        }
+
+        // Check timing
+        if ( $exam->starts_at && $now < $exam->starts_at ) {
+            return '<div class="rsyi-notice rsyi-notice-warning" dir="rtl">' .
+                esc_html__( 'الامتحان لم يبدأ بعد. يبدأ في: ', 'rsyi-sa' ) .
+                esc_html( date_i18n( 'j M Y H:i', strtotime( $exam->starts_at ) ) ) . '</div>';
+        }
+        if ( $exam->ends_at && $now > $exam->ends_at ) {
+            return '<div class="rsyi-notice rsyi-notice-error" dir="rtl">' .
+                esc_html__( 'انتهى وقت الامتحان.', 'rsyi-sa' ) . '</div>';
+        }
+
+        // Get questions (without correct answers)
+        $questions = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, question_number, question_text, question_type, options, marks, image_id, explanation
+             FROM {$wpdb->prefix}rsyi_exam_questions
+             WHERE exam_id = %d ORDER BY question_number ASC",
+            $exam_id
+        ) );
+
+        foreach ( $questions as $q ) {
+            $q->image_url = $q->image_id ? wp_get_attachment_image_url( (int) $q->image_id, 'medium' ) : null;
+            if ( $q->options && in_array( $q->question_type, [ 'ordering' ], true ) ) {
+                $opts = json_decode( $q->options, true );
+                if ( is_array( $opts ) ) {
+                    $shuffled = array_map( fn( $o ) => [ 'text' => $o['text'] ], $opts );
+                    shuffle( $shuffled );
+                    $q->options_display = $shuffled;
+                }
+            }
+            if ( $q->options && $q->question_type === 'matching' ) {
+                $opts = json_decode( $q->options, true );
+                if ( is_array( $opts ) ) {
+                    $matches = array_column( $opts, 'match' );
+                    shuffle( $matches );
+                    $q->shuffled_matches = $matches;
+                    $q->premises         = array_column( $opts, 'premise' );
+                }
+            }
+        }
+
+        return self::render_template( 'exam-take', compact( 'exam', 'questions', 'profile', 'now' ) );
     }
 }
