@@ -58,13 +58,22 @@ $status_labels = [ 'published' => 'منشور', 'draft' => 'مسودة', 'closed
 $status_colors = [ 'published' => '#27ae60', 'draft' => '#999', 'closed' => '#e74c3c' ];
 
 $q_type_labels = [
-    'mcq'          => 'اختيار متعدد (MCQ)',
+    'mcq'          => 'اختيار متعدد — إجابة واحدة',
+    'multi_select' => 'اختيار متعدد — أكثر من إجابة',
     'true_false'   => 'صح / خطأ',
-    'matching'     => 'توصيل / مطابقة',
+    'dropdown'     => 'قائمة منسدلة',
     'fill_blank'   => 'إكمال الناقص',
+    'numeric'      => 'إجابة عددية',
     'short_answer' => 'إجابة قصيرة',
     'essay'        => 'مقالة / إنشاء',
+    'matching'     => 'توصيل / مطابقة',
     'ordering'     => 'ترتيب العناصر',
+    'drag_drop'    => 'سحب وإفلات',
+    'image_choice' => 'اختيار يعتمد على صورة',
+    'hotspot'      => 'Hotspot — ضغط على صورة',
+    'coding'       => 'سؤال برمجي',
+    'file_upload'  => 'رفع ملف',
+    'audio'        => 'سؤال صوتي',
 ];
 
 // Format datetime for datetime-local input
@@ -302,7 +311,128 @@ function rsyi_dt_local( ?string $dt ): string {
                 <button type="button" id="rsyi-ordering-add-item" class="button button-small" style="margin-top:8px;">
                     + <?php esc_html_e( 'إضافة عنصر', 'rsyi-sa' ); ?>
                 </button>
-                <p class="description"><?php esc_html_e( 'أضف العناصر بالترتيب الصحيح.', 'rsyi-sa' ); ?></p>
+                <p class="description"><?php esc_html_e( 'أضف العناصر بالترتيب الصحيح — يُعرض للطالب مخلوطاً.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── Multi-select ── -->
+        <tr id="rsyi-q-multiselect-row" style="display:none;">
+            <th><?php esc_html_e( 'الخيارات', 'rsyi-sa' ); ?></th>
+            <td>
+                <div id="rsyi-multiselect-options"></div>
+                <button type="button" id="rsyi-multiselect-add-option" class="button button-small" style="margin-top:8px;">
+                    + <?php esc_html_e( 'إضافة خيار', 'rsyi-sa' ); ?>
+                </button>
+                <p class="description"><?php esc_html_e( 'ضع ✓ على كل الإجابات الصحيحة (قد تكون أكثر من واحدة).', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── Dropdown ── -->
+        <tr id="rsyi-q-dropdown-row" style="display:none;">
+            <th><?php esc_html_e( 'الخيارات', 'rsyi-sa' ); ?></th>
+            <td>
+                <div id="rsyi-dropdown-options"></div>
+                <button type="button" id="rsyi-dropdown-add-option" class="button button-small" style="margin-top:8px;">
+                    + <?php esc_html_e( 'إضافة خيار', 'rsyi-sa' ); ?>
+                </button>
+                <p class="description"><?php esc_html_e( 'ضع علامة ✓ على الإجابة الصحيحة — يُعرض للطالب كقائمة منسدلة.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── Numeric ── -->
+        <tr id="rsyi-q-numeric-row" style="display:none;">
+            <th><?php esc_html_e( 'الإجابة الصحيحة', 'rsyi-sa' ); ?></th>
+            <td>
+                <input type="number" id="rsyi-q-numeric-answer" step="any" placeholder="مثال: 42.5" style="width:140px;">
+                <br>
+                <label style="margin-top:8px; display:inline-block;">
+                    <?php esc_html_e( 'هامش الخطأ المسموح:', 'rsyi-sa' ); ?>
+                    <input type="number" id="rsyi-q-numeric-tolerance" min="0" step="any" value="0" style="width:80px; margin-right:6px;">
+                </label>
+                <p class="description"><?php esc_html_e( '0 = تطابق تام. مثال: إجابة 10 وهامش 0.5 يقبل 9.5 → 10.5', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── Drag & Drop (same structure as ordering) ── -->
+        <tr id="rsyi-q-dragdrop-row" style="display:none;">
+            <th><?php esc_html_e( 'العناصر بالترتيب الصحيح', 'rsyi-sa' ); ?></th>
+            <td>
+                <div id="rsyi-dragdrop-items"></div>
+                <button type="button" id="rsyi-dragdrop-add-item" class="button button-small" style="margin-top:8px;">
+                    + <?php esc_html_e( 'إضافة عنصر', 'rsyi-sa' ); ?>
+                </button>
+                <p class="description"><?php esc_html_e( 'الطالب يُرتّب العناصر بالسحب والإفلات.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── Image Choice (MCQ variant with prominent image) ── -->
+        <tr id="rsyi-q-imagechoice-row" style="display:none;">
+            <th><?php esc_html_e( 'الخيارات', 'rsyi-sa' ); ?></th>
+            <td>
+                <div id="rsyi-imagechoice-options"></div>
+                <button type="button" id="rsyi-imagechoice-add-option" class="button button-small" style="margin-top:8px;">
+                    + <?php esc_html_e( 'إضافة خيار', 'rsyi-sa' ); ?>
+                </button>
+                <p class="description"><?php esc_html_e( 'أضف صورة للسؤال من حقل الصورة أعلاه — ضع ✓ على الإجابة الصحيحة.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── Hotspot ── -->
+        <tr id="rsyi-q-hotspot-row" style="display:none;">
+            <th><?php esc_html_e( 'مناطق الضغط', 'rsyi-sa' ); ?></th>
+            <td>
+                <p class="description" style="color:#0073aa;"><?php esc_html_e( 'أضف صورة من حقل الصورة أعلاه، ثم حدد المناطق (x%, y%, عرض%, ارتفاع%).', 'rsyi-sa' ); ?></p>
+                <div id="rsyi-hotspot-regions"></div>
+                <button type="button" id="rsyi-hotspot-add-region" class="button button-small" style="margin-top:8px;">
+                    + <?php esc_html_e( 'إضافة منطقة', 'rsyi-sa' ); ?>
+                </button>
+            </td>
+        </tr>
+
+        <!-- ── Coding ── -->
+        <tr id="rsyi-q-coding-row" style="display:none;">
+            <th><?php esc_html_e( 'إعدادات الكود', 'rsyi-sa' ); ?></th>
+            <td>
+                <label><?php esc_html_e( 'لغة البرمجة:', 'rsyi-sa' ); ?>
+                    <select id="rsyi-q-coding-lang" style="margin-right:8px;">
+                        <option value="python">Python</option>
+                        <option value="javascript">JavaScript</option>
+                        <option value="java">Java</option>
+                        <option value="c">C</option>
+                        <option value="cpp">C++</option>
+                        <option value="sql">SQL</option>
+                        <option value="html">HTML/CSS</option>
+                        <option value="other">أخرى</option>
+                    </select>
+                </label>
+                <br>
+                <label style="margin-top:8px; display:block;"><?php esc_html_e( 'كود البداية (اختياري):', 'rsyi-sa' ); ?></label>
+                <textarea id="rsyi-q-coding-starter" rows="4" style="width:100%; font-family:monospace; margin-top:4px;" placeholder="# اكتب كود البداية هنا..."></textarea>
+                <p class="description"><?php esc_html_e( 'التصحيح يدوي من المدرس.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── File Upload ── -->
+        <tr id="rsyi-q-fileupload-row" style="display:none;">
+            <th><?php esc_html_e( 'إعدادات الرفع', 'rsyi-sa' ); ?></th>
+            <td>
+                <label><?php esc_html_e( 'أنواع الملفات المسموحة:', 'rsyi-sa' ); ?>
+                    <input type="text" id="rsyi-q-fileupload-types" value="pdf,doc,docx,jpg,png" style="width:220px; margin-right:8px;">
+                </label>
+                <br>
+                <label style="margin-top:8px; display:inline-block;"><?php esc_html_e( 'الحجم الأقصى (MB):', 'rsyi-sa' ); ?>
+                    <input type="number" id="rsyi-q-fileupload-maxmb" value="10" min="1" max="100" style="width:70px; margin-right:8px;">
+                </label>
+                <p class="description"><?php esc_html_e( 'الطالب يرفع ملفاً — التصحيح يدوي.', 'rsyi-sa' ); ?></p>
+            </td>
+        </tr>
+
+        <!-- ── Audio ── -->
+        <tr id="rsyi-q-audio-row" style="display:none;">
+            <th><?php esc_html_e( 'الملف الصوتي', 'rsyi-sa' ); ?></th>
+            <td>
+                <input type="url" id="rsyi-q-audio-url" style="width:100%; max-width:460px;" placeholder="<?php esc_attr_e( 'رابط ملف الصوت (MP3/OGG)...', 'rsyi-sa' ); ?>">
+                <p class="description"><?php esc_html_e( 'الطالب يستمع للتسجيل ثم يكتب إجابته — التصحيح يدوي.', 'rsyi-sa' ); ?></p>
             </td>
         </tr>
 
