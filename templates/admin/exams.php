@@ -22,7 +22,7 @@ $exams      = $wpdb->get_results(
      FROM {$wpdb->prefix}rsyi_exams e
      LEFT JOIN {$wpdb->users} u ON u.ID = e.created_by
      LEFT JOIN {$wpdb->prefix}rsyi_cohorts c ON c.id = e.cohort_id
-     ORDER BY e.starts_at DESC, e.created_at DESC LIMIT 200"
+     ORDER BY e.created_at DESC LIMIT 200"
 );
 
 $selected_exam_id = absint( $_GET['exam_id'] ?? 0 );
