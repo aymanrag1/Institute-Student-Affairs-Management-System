@@ -60,7 +60,7 @@ $list_url    = remove_query_arg( 'exam_id', get_permalink() );
 
             <div class="rsyi-question__answer">
                 <?php if ( $type === 'mcq' && is_array( $opts ) ) : ?>
-                    <!-- MCQ -->
+                    <!-- MCQ — single choice -->
                     <div class="rsyi-mcq-options">
                         <?php foreach ( $opts as $oi => $opt ) : ?>
                         <label class="rsyi-mcq-option">
@@ -71,6 +71,29 @@ $list_url    = remove_query_arg( 'exam_id', get_permalink() );
                         </label>
                         <?php endforeach; ?>
                     </div>
+
+                <?php elseif ( $type === 'multi_select' && is_array( $opts ) ) : ?>
+                    <!-- Multi-select — multiple choices -->
+                    <div class="rsyi-mcq-options">
+                        <p class="description" style="margin-bottom:8px;"><?php esc_html_e( 'اختر كل الإجابات الصحيحة', 'rsyi-sa' ); ?></p>
+                        <?php foreach ( $opts as $oi => $opt ) : ?>
+                        <label class="rsyi-mcq-option">
+                            <input type="checkbox"
+                                   name="answers[<?php echo esc_attr( $q->id ); ?>][]"
+                                   value="<?php echo esc_attr( $oi ); ?>">
+                            <span><?php echo esc_html( $opt['text'] ?? '' ); ?></span>
+                        </label>
+                        <?php endforeach; ?>
+                    </div>
+
+                <?php elseif ( $type === 'dropdown' && is_array( $opts ) ) : ?>
+                    <!-- Dropdown -->
+                    <select name="answers[<?php echo esc_attr( $q->id ); ?>]" class="rsyi-dropdown-answer" style="min-width:200px;">
+                        <option value=""><?php esc_html_e( '— اختر إجابة —', 'rsyi-sa' ); ?></option>
+                        <?php foreach ( $opts as $oi => $opt ) : ?>
+                        <option value="<?php echo esc_attr( $oi ); ?>"><?php echo esc_html( $opt['text'] ?? '' ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
 
                 <?php elseif ( $type === 'true_false' ) : ?>
                     <!-- True / False -->
@@ -127,9 +150,18 @@ $list_url    = remove_query_arg( 'exam_id', get_permalink() );
                            class="rsyi-fill-input regular-text"
                            placeholder="<?php esc_attr_e( 'اكتب إجابتك هنا…', 'rsyi-sa' ); ?>">
 
-                <?php elseif ( $type === 'ordering' && isset( $q->options_display ) && is_array( $q->options_display ) ) : ?>
-                    <!-- Ordering — drag-and-drop list -->
+                <?php elseif ( $type === 'numeric' ) : ?>
+                    <!-- Numeric answer -->
+                    <input type="number" step="any"
+                           name="answers[<?php echo esc_attr( $q->id ); ?>]"
+                           class="rsyi-numeric-answer"
+                           style="width:150px;"
+                           placeholder="<?php esc_attr_e( 'أدخل رقماً…', 'rsyi-sa' ); ?>">
+
+                <?php elseif ( ( $type === 'ordering' || $type === 'drag_drop' ) && isset( $q->options_display ) && is_array( $q->options_display ) ) : ?>
+                    <!-- Ordering / Drag-and-drop list -->
                     <div class="rsyi-ordering-wrap">
+                        <p class="description" style="margin-bottom:6px;"><?php esc_html_e( 'اسحب العناصر لترتيبها', 'rsyi-sa' ); ?></p>
                         <ul class="rsyi-ordering-list" id="rsyi-order-<?php echo esc_attr( $q->id ); ?>">
                             <?php foreach ( $q->options_display as $item ) : ?>
                             <li class="rsyi-ordering-item" draggable="true">
@@ -142,6 +174,79 @@ $list_url    = remove_query_arg( 'exam_id', get_permalink() );
                                name="answers[<?php echo esc_attr( $q->id ); ?>]"
                                id="rsyi-order-val-<?php echo esc_attr( $q->id ); ?>"
                                class="rsyi-ordering-value">
+                    </div>
+
+                <?php elseif ( $type === 'image_choice' && is_array( $opts ) ) : ?>
+                    <!-- Image choice — radio buttons with image labels -->
+                    <div class="rsyi-image-choice-options" style="display:flex;flex-wrap:wrap;gap:12px;">
+                        <?php foreach ( $opts as $oi => $opt ) : ?>
+                        <label class="rsyi-image-choice-option" style="cursor:pointer;text-align:center;border:2px solid #ddd;border-radius:4px;padding:8px;">
+                            <input type="radio"
+                                   name="answers[<?php echo esc_attr( $q->id ); ?>]"
+                                   value="<?php echo esc_attr( $oi ); ?>"
+                                   style="display:block;margin:0 auto 6px;">
+                            <?php if ( ! empty( $opt['image_url'] ) ) : ?>
+                                <img src="<?php echo esc_url( $opt['image_url'] ); ?>" alt="" style="max-width:120px;max-height:120px;display:block;margin:0 auto;">
+                            <?php endif; ?>
+                            <?php if ( ! empty( $opt['text'] ) ) : ?>
+                                <span style="font-size:13px;"><?php echo esc_html( $opt['text'] ); ?></span>
+                            <?php endif; ?>
+                        </label>
+                        <?php endforeach; ?>
+                    </div>
+
+                <?php elseif ( $type === 'hotspot' && ! empty( $q->image_url ) ) : ?>
+                    <!-- Hotspot — click on image -->
+                    <div class="rsyi-hotspot-wrap" style="position:relative;display:inline-block;cursor:crosshair;"
+                         id="rsyi-hotspot-<?php echo esc_attr( $q->id ); ?>">
+                        <img src="<?php echo esc_url( $q->image_url ); ?>" alt=""
+                             style="max-width:100%;display:block;"
+                             id="rsyi-hotspot-img-<?php echo esc_attr( $q->id ); ?>">
+                        <div class="rsyi-hotspot-marker" id="rsyi-hotspot-marker-<?php echo esc_attr( $q->id ); ?>"
+                             style="display:none;position:absolute;width:20px;height:20px;background:rgba(255,50,50,0.7);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;"></div>
+                    </div>
+                    <input type="hidden"
+                           name="answers[<?php echo esc_attr( $q->id ); ?>]"
+                           id="rsyi-hotspot-val-<?php echo esc_attr( $q->id ); ?>"
+                           class="rsyi-hotspot-value">
+                    <p class="description"><?php esc_html_e( 'اضغط على الصورة للإشارة إلى إجابتك', 'rsyi-sa' ); ?></p>
+
+                <?php elseif ( $type === 'coding' ) : ?>
+                    <!-- Coding -->
+                    <textarea name="answers[<?php echo esc_attr( $q->id ); ?>]"
+                              rows="10"
+                              class="rsyi-coding-answer"
+                              style="font-family:monospace;direction:ltr;text-align:left;"
+                              placeholder="<?php esc_attr_e( 'اكتب الكود هنا…', 'rsyi-sa' ); ?>"></textarea>
+
+                <?php elseif ( $type === 'file_upload' ) : ?>
+                    <!-- File upload -->
+                    <div class="rsyi-file-upload-wrap">
+                        <input type="file"
+                               id="rsyi-file-<?php echo esc_attr( $q->id ); ?>"
+                               class="rsyi-file-input"
+                               data-qid="<?php echo esc_attr( $q->id ); ?>">
+                        <input type="hidden"
+                               name="answers[<?php echo esc_attr( $q->id ); ?>]"
+                               id="rsyi-file-val-<?php echo esc_attr( $q->id ); ?>"
+                               class="rsyi-file-answer-val">
+                        <p class="description rsyi-file-status" id="rsyi-file-status-<?php echo esc_attr( $q->id ); ?>">
+                            <?php esc_html_e( 'اختر ملفاً للرفع', 'rsyi-sa' ); ?>
+                        </p>
+                    </div>
+
+                <?php elseif ( $type === 'audio' ) : ?>
+                    <!-- Audio question — student records or types response -->
+                    <div class="rsyi-audio-wrap">
+                        <?php if ( ! empty( $q->image_url ) ) : // reusing image_url for audio src ?>
+                            <audio controls style="width:100%;margin-bottom:10px;">
+                                <source src="<?php echo esc_url( $q->image_url ); ?>">
+                            </audio>
+                        <?php endif; ?>
+                        <textarea name="answers[<?php echo esc_attr( $q->id ); ?>]"
+                                  rows="4"
+                                  class="rsyi-audio-answer"
+                                  placeholder="<?php esc_attr_e( 'اكتب إجابتك هنا بعد الاستماع…', 'rsyi-sa' ); ?>"></textarea>
                     </div>
 
                 <?php elseif ( $type === 'short_answer' ) : ?>
@@ -246,25 +351,80 @@ $list_url    = remove_query_arg( 'exam_id', get_permalink() );
     }
     initOrdering();
 
+    /* ---------- Hotspot click handler ---------- */
+    document.querySelectorAll('.rsyi-hotspot-wrap').forEach(function(wrap) {
+        var img    = wrap.querySelector('img');
+        var marker = wrap.querySelector('.rsyi-hotspot-marker');
+        var qid    = wrap.id.replace('rsyi-hotspot-', '');
+        var valInp = document.getElementById('rsyi-hotspot-val-' + qid);
+        wrap.addEventListener('click', function(e) {
+            var rect = img.getBoundingClientRect();
+            var x = ((e.clientX - rect.left) / rect.width * 100).toFixed(2);
+            var y = ((e.clientY - rect.top)  / rect.height * 100).toFixed(2);
+            if (marker) {
+                marker.style.left = x + '%';
+                marker.style.top  = y + '%';
+                marker.style.display = 'block';
+            }
+            if (valInp) valInp.value = JSON.stringify({ x: parseFloat(x), y: parseFloat(y) });
+        });
+    });
+
+    /* ---------- File upload handler ---------- */
+    document.querySelectorAll('.rsyi-file-input').forEach(function(input) {
+        input.addEventListener('change', function() {
+            var qid    = this.getAttribute('data-qid');
+            var status = document.getElementById('rsyi-file-status-' + qid);
+            var valInp = document.getElementById('rsyi-file-val-' + qid);
+            var file   = this.files[0];
+            if (!file) return;
+            var fd = new FormData();
+            fd.append('action', 'rsyi_upload_exam_file');
+            fd.append('_nonce', rsyiPortal.nonce);
+            fd.append('file', file);
+            if (status) status.textContent = '<?php echo esc_js( __( 'جاري الرفع…', 'rsyi-sa' ) ); ?>';
+            fetch(rsyiPortal.ajaxUrl, { method: 'POST', body: fd })
+                .then(function(r){ return r.json(); })
+                .then(function(res) {
+                    if (res.success && res.data && res.data.url) {
+                        if (valInp) valInp.value = res.data.url;
+                        if (status) status.textContent = '<?php echo esc_js( __( 'تم الرفع ✓', 'rsyi-sa' ) ); ?>';
+                    } else {
+                        if (status) status.textContent = '<?php echo esc_js( __( 'فشل الرفع', 'rsyi-sa' ) ); ?>';
+                    }
+                })
+                .catch(function() {
+                    if (status) status.textContent = '<?php echo esc_js( __( 'خطأ في الاتصال', 'rsyi-sa' ) ); ?>';
+                });
+        });
+    });
+
     /* ---------- Collect answers ---------- */
     function collectAnswers() {
         var answers = {};
         var form = document.getElementById('rsyi-exam-form');
 
-        // Radio + text + textarea inputs
         $(form).find('[name^="answers["]').each(function(){
-            var m = this.name.match(/^answers\[(\d+)\](?:\[(\d+)\])?$/);
+            var m = this.name.match(/^answers\[(\d+)\](?:\[(\d+)\])?(\\[\\])?$/);
             if (!m) return;
             var qid = m[1];
             var sub = m[2];
 
             if (this.type === 'radio' && !this.checked) return;
+            if (this.type === 'checkbox') {
+                // multi_select: collect into array
+                if (this.checked) {
+                    if (!answers[qid]) answers[qid] = [];
+                    answers[qid].push(this.value);
+                }
+                return;
+            }
 
             if (sub !== undefined) {
-                // matching
+                // matching sub-key
                 if (!answers[qid]) answers[qid] = {};
                 answers[qid][sub] = this.value;
-            } else if (this.classList.contains('rsyi-ordering-value')) {
+            } else if (this.classList.contains('rsyi-ordering-value') || this.classList.contains('rsyi-hotspot-value')) {
                 try { answers[qid] = JSON.parse(this.value); } catch(e) { answers[qid] = this.value; }
             } else {
                 answers[qid] = this.value;

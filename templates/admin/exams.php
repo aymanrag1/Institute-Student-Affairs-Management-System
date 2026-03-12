@@ -492,111 +492,255 @@ jQuery(function($){
     var mediaFrame;
 
     var qTypeHints = {
-        mcq:          '<?php echo esc_js( __( 'أضف خيارات وضع علامة على الصحيح — تصحيح تلقائي', 'rsyi-sa' ) ); ?>',
-        true_false:   '<?php echo esc_js( __( 'اختر الإجابة الصحيحة — تصحيح تلقائي', 'rsyi-sa' ) ); ?>',
-        matching:     '<?php echo esc_js( __( 'أضف أزواج التوصيل — تصحيح تلقائي', 'rsyi-sa' ) ); ?>',
-        fill_blank:   '<?php echo esc_js( __( 'اكتب الإجابة الصحيحة — تصحيح تلقائي', 'rsyi-sa' ) ); ?>',
-        short_answer: '<?php echo esc_js( __( 'إجابة قصيرة — تصحيح يدوي بالمدرس', 'rsyi-sa' ) ); ?>',
-        essay:        '<?php echo esc_js( __( 'إجابة مقالية — تصحيح يدوي بالمدرس', 'rsyi-sa' ) ); ?>',
-        ordering:     '<?php echo esc_js( __( 'ضع العناصر بالترتيب الصحيح — تصحيح تلقائي', 'rsyi-sa' ) ); ?>',
+        mcq:           '✅ تصحيح تلقائي — إجابة صحيحة واحدة',
+        multi_select:  '✅ تصحيح تلقائي — أكثر من إجابة صحيحة',
+        true_false:    '✅ تصحيح تلقائي — صح أو خطأ',
+        dropdown:      '✅ تصحيح تلقائي — قائمة منسدلة',
+        fill_blank:    '✅ تصحيح تلقائي — مطابقة نصية',
+        numeric:       '✅ تصحيح تلقائي — رقمي مع هامش خطأ',
+        matching:      '✅ تصحيح تلقائي — توصيل العناصر',
+        ordering:      '✅ تصحيح تلقائي — ترتيب بالسحب',
+        drag_drop:     '✅ تصحيح تلقائي — سحب وإفلات',
+        image_choice:  '✅ تصحيح تلقائي — اختيار من صورة',
+        hotspot:       '✅ تصحيح تلقائي — ضغط على منطقة',
+        short_answer:  '✏️ تصحيح يدوي — إجابة قصيرة',
+        essay:         '✏️ تصحيح يدوي — مقالة',
+        coding:        '✏️ تصحيح يدوي — كود برمجي',
+        file_upload:   '✏️ تصحيح يدوي — رفع ملف',
+        audio:         '✏️ تصحيح يدوي — سؤال صوتي',
     };
+
+    // All type-specific row IDs
+    var allTypeRows = [
+        '#rsyi-q-mcq-row', '#rsyi-q-tf-row', '#rsyi-q-matching-row',
+        '#rsyi-q-fill-row', '#rsyi-q-ref-row', '#rsyi-q-ordering-row',
+        '#rsyi-q-multiselect-row', '#rsyi-q-dropdown-row', '#rsyi-q-numeric-row',
+        '#rsyi-q-dragdrop-row', '#rsyi-q-imagechoice-row', '#rsyi-q-hotspot-row',
+        '#rsyi-q-coding-row', '#rsyi-q-fileupload-row', '#rsyi-q-audio-row'
+    ].join(', ');
 
     // ── Question type change ──────────────────────────────────────────────────
     function updateTypeFields(type) {
-        $('#rsyi-q-mcq-row, #rsyi-q-tf-row, #rsyi-q-matching-row, #rsyi-q-fill-row, #rsyi-q-ref-row, #rsyi-q-ordering-row').hide();
+        $(allTypeRows).hide();
         $('#rsyi-q-type-hint').text(qTypeHints[type] || '');
-        switch(type) {
-            case 'mcq':          $('#rsyi-q-mcq-row').show(); break;
-            case 'true_false':   $('#rsyi-q-tf-row').show(); break;
-            case 'matching':     $('#rsyi-q-matching-row').show(); break;
-            case 'fill_blank':   $('#rsyi-q-fill-row').show(); break;
-            case 'short_answer':
-            case 'essay':        $('#rsyi-q-ref-row').show(); break;
-            case 'ordering':     $('#rsyi-q-ordering-row').show(); break;
-        }
+        var map = {
+            mcq:          '#rsyi-q-mcq-row',
+            multi_select: '#rsyi-q-multiselect-row',
+            true_false:   '#rsyi-q-tf-row',
+            dropdown:     '#rsyi-q-dropdown-row',
+            fill_blank:   '#rsyi-q-fill-row',
+            numeric:      '#rsyi-q-numeric-row',
+            short_answer: '#rsyi-q-ref-row',
+            essay:        '#rsyi-q-ref-row',
+            matching:     '#rsyi-q-matching-row',
+            ordering:     '#rsyi-q-ordering-row',
+            drag_drop:    '#rsyi-q-dragdrop-row',
+            image_choice: '#rsyi-q-imagechoice-row',
+            hotspot:      '#rsyi-q-hotspot-row',
+            coding:       '#rsyi-q-coding-row',
+            file_upload:  '#rsyi-q-fileupload-row',
+            audio:        '#rsyi-q-audio-row',
+        };
+        if (map[type]) $(map[type]).show();
     }
 
     $('#rsyi-q-type').on('change', function(){ updateTypeFields($(this).val()); });
     updateTypeFields($('#rsyi-q-type').val());
 
-    // ── MCQ helpers ───────────────────────────────────────────────────────────
-    function addMcqOption(text, isCorrect) {
-        var idx = $('#rsyi-mcq-options .rsyi-mcq-opt').length;
-        var html = '<div class="rsyi-mcq-opt" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">' +
-            '<input type="radio" name="rsyi_mcq_correct" value="' + idx + '"' + (isCorrect ? ' checked' : '') + ' title="الإجابة الصحيحة" style="cursor:pointer;">' +
-            '<input type="text" class="rsyi-mcq-opt-text regular-text" value="' + $('<div>').text(text||'').html() + '" placeholder="نص الخيار..." style="flex:1;">' +
-            '<button type="button" class="button button-small rsyi-mcq-remove" style="color:#a00; border-color:#a00;">✕</button>' +
+    // ── Generic option-list builder (used by MCQ, multi_select, dropdown, image_choice)
+    function makeOptRow(containerId, radioName, text, isCorrect, isCheckbox) {
+        var container = $('#' + containerId);
+        var idx = container.children().length;
+        var inputType = isCheckbox ? 'checkbox' : 'radio';
+        var html = '<div class="rsyi-opt-row" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;" data-idx="' + idx + '">' +
+            '<input type="' + inputType + '" name="' + radioName + '" value="' + idx + '"' + (isCorrect ? ' checked' : '') + ' title="الإجابة الصحيحة" style="cursor:pointer;flex-shrink:0;">' +
+            '<input type="text" class="rsyi-opt-text regular-text" value="' + $('<div>').text(text||'').html() + '" placeholder="نص الخيار..." style="flex:1;">' +
+            '<button type="button" class="button button-small rsyi-opt-remove" style="color:#a00;border-color:#a00;">✕</button>' +
             '</div>';
-        $('#rsyi-mcq-options').append(html);
+        container.append(html);
     }
 
-    $('#rsyi-mcq-add-option').on('click', function(){ addMcqOption('', false); });
-    $(document).on('click', '.rsyi-mcq-remove', function(){ $(this).closest('.rsyi-mcq-opt').remove(); });
+    // MCQ
+    function addMcqOption(t,c){ makeOptRow('rsyi-mcq-options','rsyi_mcq_correct',t,c,false); }
+    $('#rsyi-mcq-add-option').on('click', function(){ addMcqOption('',false); });
+    $(document).on('click','#rsyi-mcq-options .rsyi-opt-remove',function(){ $(this).closest('.rsyi-opt-row').remove(); });
+
+    // Multi-select
+    function addMsOption(t,c){ makeOptRow('rsyi-multiselect-options','rsyi_ms_correct',t,c,true); }
+    $('#rsyi-multiselect-add-option').on('click', function(){ addMsOption('',false); });
+    $(document).on('click','#rsyi-multiselect-options .rsyi-opt-remove',function(){ $(this).closest('.rsyi-opt-row').remove(); });
+
+    // Dropdown
+    function addDdOption(t,c){ makeOptRow('rsyi-dropdown-options','rsyi_dd_correct',t,c,false); }
+    $('#rsyi-dropdown-add-option').on('click', function(){ addDdOption('',false); });
+    $(document).on('click','#rsyi-dropdown-options .rsyi-opt-remove',function(){ $(this).closest('.rsyi-opt-row').remove(); });
+
+    // Image choice
+    function addIcOption(t,c){ makeOptRow('rsyi-imagechoice-options','rsyi_ic_correct',t,c,false); }
+    $('#rsyi-imagechoice-add-option').on('click', function(){ addIcOption('',false); });
+    $(document).on('click','#rsyi-imagechoice-options .rsyi-opt-remove',function(){ $(this).closest('.rsyi-opt-row').remove(); });
 
     // ── Matching helpers ──────────────────────────────────────────────────────
     function addMatchingPair(premise, match) {
-        var html = '<div class="rsyi-match-pair" style="display:flex; gap:8px; margin-bottom:6px;">' +
+        var html = '<div class="rsyi-match-pair" style="display:flex;gap:8px;margin-bottom:6px;">' +
             '<input type="text" class="rsyi-premise regular-text" value="' + $('<div>').text(premise||'').html() + '" placeholder="العبارة..." style="flex:1;">' +
-            '<span style="line-height:32px; font-size:16px; color:#0073aa;">↔</span>' +
+            '<span style="line-height:32px;font-size:16px;color:#0073aa;">↔</span>' +
             '<input type="text" class="rsyi-match regular-text" value="' + $('<div>').text(match||'').html() + '" placeholder="المطابق الصحيح..." style="flex:1;">' +
-            '<button type="button" class="button button-small rsyi-match-remove" style="color:#a00; border-color:#a00;">✕</button>' +
+            '<button type="button" class="button button-small rsyi-match-remove" style="color:#a00;border-color:#a00;">✕</button>' +
             '</div>';
         $('#rsyi-matching-pairs').append(html);
     }
+    $('#rsyi-matching-add-pair').on('click', function(){ addMatchingPair('',''); });
+    $(document).on('click','.rsyi-match-remove',function(){ $(this).closest('.rsyi-match-pair').remove(); });
 
-    $('#rsyi-matching-add-pair').on('click', function(){ addMatchingPair('', ''); });
-    $(document).on('click', '.rsyi-match-remove', function(){ $(this).closest('.rsyi-match-pair').remove(); });
-
-    // ── Ordering helpers ──────────────────────────────────────────────────────
-    function addOrderingItem(text) {
-        var idx = $('#rsyi-ordering-items .rsyi-order-item').length + 1;
-        var html = '<div class="rsyi-order-item" style="display:flex; gap:8px; margin-bottom:6px; align-items:center;">' +
-            '<span style="font-weight:700; color:#888; width:20px; text-align:center;">' + idx + '</span>' +
+    // ── Generic ordered-item list (Ordering + Drag&Drop) ─────────────────────
+    function makeOrderItem(containerId, text) {
+        var idx = $('#' + containerId + ' .rsyi-order-item').length + 1;
+        var html = '<div class="rsyi-order-item" style="display:flex;gap:8px;margin-bottom:6px;align-items:center;">' +
+            '<span style="font-weight:700;color:#888;width:20px;text-align:center;">' + idx + '</span>' +
             '<input type="text" class="rsyi-order-text regular-text" value="' + $('<div>').text(text||'').html() + '" placeholder="نص العنصر..." style="flex:1;">' +
-            '<button type="button" class="button button-small rsyi-order-remove" style="color:#a00; border-color:#a00;">✕</button>' +
+            '<button type="button" class="button button-small rsyi-order-remove" style="color:#a00;border-color:#a00;">✕</button>' +
             '</div>';
-        $('#rsyi-ordering-items').append(html);
+        $('#' + containerId).append(html);
     }
-
+    function addOrderingItem(t){ makeOrderItem('rsyi-ordering-items',t); }
+    function addDragDropItem(t){ makeOrderItem('rsyi-dragdrop-items',t); }
     $('#rsyi-ordering-add-item').on('click', function(){ addOrderingItem(''); });
-    $(document).on('click', '.rsyi-order-remove', function(){ $(this).closest('.rsyi-order-item').remove(); });
+    $('#rsyi-dragdrop-add-item').on('click', function(){ addDragDropItem(''); });
+    $(document).on('click','.rsyi-order-remove',function(){ $(this).closest('.rsyi-order-item').remove(); });
+
+    // ── Hotspot region helpers ────────────────────────────────────────────────
+    function addHotspotRegion(label, x, y, w, h, isCorrect) {
+        var idx = $('#rsyi-hotspot-regions .rsyi-hs-region').length;
+        var html = '<div class="rsyi-hs-region" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">' +
+            '<input type="radio" name="rsyi_hs_correct" value="' + idx + '"' + (isCorrect?' checked':'') + ' title="المنطقة الصحيحة">' +
+            '<input type="text" class="rsyi-hs-label" value="' + $('<div>').text(label||'').html() + '" placeholder="اسم المنطقة" style="width:100px;">' +
+            'X%:<input type="number" class="rsyi-hs-x" value="' + (x||0) + '" min="0" max="100" step="0.1" style="width:55px;">' +
+            'Y%:<input type="number" class="rsyi-hs-y" value="' + (y||0) + '" min="0" max="100" step="0.1" style="width:55px;">' +
+            'W%:<input type="number" class="rsyi-hs-w" value="' + (w||10) + '" min="1" max="100" step="0.1" style="width:55px;">' +
+            'H%:<input type="number" class="rsyi-hs-h" value="' + (h||10) + '" min="1" max="100" step="0.1" style="width:55px;">' +
+            '<button type="button" class="button button-small rsyi-hs-remove" style="color:#a00;border-color:#a00;">✕</button>' +
+            '</div>';
+        $('#rsyi-hotspot-regions').append(html);
+    }
+    $('#rsyi-hotspot-add-region').on('click', function(){ addHotspotRegion('','',0,0,10,10,false); });
+    $(document).on('click','.rsyi-hs-remove',function(){ $(this).closest('.rsyi-hs-region').remove(); });
 
     // ── Build options / correct_answer from UI ────────────────────────────────
     function getOptionsAndAnswer() {
         var type = $('#rsyi-q-type').val();
         var options = null, correct_answer = null;
 
-        if (type === 'mcq') {
-            var opts = [];
-            var correctIdx = parseInt($('input[name="rsyi_mcq_correct"]:checked').val());
-            $('#rsyi-mcq-options .rsyi-mcq-opt').each(function(i){
-                opts.push({ text: $(this).find('.rsyi-mcq-opt-text').val(), correct: (i === correctIdx) });
-            });
-            options = JSON.stringify(opts);
-        } else if (type === 'true_false') {
-            correct_answer = $('input[name="rsyi_tf_answer"]:checked').val() || 'true';
-        } else if (type === 'matching') {
-            var pairs = [];
-            $('#rsyi-matching-pairs .rsyi-match-pair').each(function(){
-                pairs.push({ premise: $(this).find('.rsyi-premise').val(), match: $(this).find('.rsyi-match').val() });
-            });
-            options = JSON.stringify(pairs);
-        } else if (type === 'fill_blank') {
-            correct_answer = $('#rsyi-q-fill-answer').val();
-        } else if (type === 'short_answer' || type === 'essay') {
-            correct_answer = $('#rsyi-q-ref-answer').val();
-        } else if (type === 'ordering') {
-            var items = [];
-            $('#rsyi-ordering-items .rsyi-order-item').each(function(i){
-                items.push({ text: $(this).find('.rsyi-order-text').val(), order: i + 1 });
-            });
-            options = JSON.stringify(items);
+        switch(type) {
+            case 'mcq':
+            case 'image_choice': {
+                var containerSel = (type==='mcq') ? '#rsyi-mcq-options' : '#rsyi-imagechoice-options';
+                var radioName    = (type==='mcq') ? 'rsyi_mcq_correct' : 'rsyi_ic_correct';
+                var correctIdx   = parseInt($('input[name="'+radioName+'"]:checked').val());
+                var opts = [];
+                $(containerSel + ' .rsyi-opt-row').each(function(i){
+                    opts.push({ text: $(this).find('.rsyi-opt-text').val(), correct: (i===correctIdx) });
+                });
+                options = JSON.stringify(opts);
+                break;
+            }
+            case 'multi_select': {
+                var opts = [], correctIdxs = [];
+                $('#rsyi-multiselect-options .rsyi-opt-row').each(function(i){
+                    var checked = $(this).find('input[type=checkbox]').is(':checked');
+                    opts.push({ text: $(this).find('.rsyi-opt-text').val(), correct: checked });
+                    if (checked) correctIdxs.push(i);
+                });
+                options        = JSON.stringify(opts);
+                correct_answer = JSON.stringify(correctIdxs);
+                break;
+            }
+            case 'dropdown': {
+                var correctIdx = parseInt($('input[name="rsyi_dd_correct"]:checked').val()) || 0;
+                var opts = [];
+                $('#rsyi-dropdown-options .rsyi-opt-row').each(function(){
+                    opts.push({ text: $(this).find('.rsyi-opt-text').val() });
+                });
+                options        = JSON.stringify(opts);
+                correct_answer = String(correctIdx);
+                break;
+            }
+            case 'true_false':
+                correct_answer = $('input[name="rsyi_tf_answer"]:checked').val() || 'true';
+                break;
+            case 'fill_blank':
+                correct_answer = $('#rsyi-q-fill-answer').val();
+                break;
+            case 'numeric':
+                correct_answer = $('#rsyi-q-numeric-answer').val();
+                options        = JSON.stringify({ tolerance: parseFloat($('#rsyi-q-numeric-tolerance').val()) || 0 });
+                break;
+            case 'short_answer':
+            case 'essay':
+            case 'audio':
+                correct_answer = $('#rsyi-q-ref-answer').val();
+                if (type==='audio') {
+                    options = JSON.stringify({ audio_url: $('#rsyi-q-audio-url').val() });
+                }
+                break;
+            case 'matching': {
+                var pairs = [];
+                $('#rsyi-matching-pairs .rsyi-match-pair').each(function(){
+                    pairs.push({ premise: $(this).find('.rsyi-premise').val(), match: $(this).find('.rsyi-match').val() });
+                });
+                options = JSON.stringify(pairs);
+                break;
+            }
+            case 'ordering': {
+                var items = [];
+                $('#rsyi-ordering-items .rsyi-order-item').each(function(i){
+                    items.push({ text: $(this).find('.rsyi-order-text').val(), order: i+1 });
+                });
+                options = JSON.stringify(items);
+                break;
+            }
+            case 'drag_drop': {
+                var items = [];
+                $('#rsyi-dragdrop-items .rsyi-order-item').each(function(i){
+                    items.push({ text: $(this).find('.rsyi-order-text').val(), order: i+1 });
+                });
+                options = JSON.stringify(items);
+                break;
+            }
+            case 'hotspot': {
+                var regions = [];
+                var correctRegion = parseInt($('input[name="rsyi_hs_correct"]:checked').val()) || 0;
+                $('#rsyi-hotspot-regions .rsyi-hs-region').each(function(i){
+                    regions.push({
+                        label: $(this).find('.rsyi-hs-label').val(),
+                        x: parseFloat($(this).find('.rsyi-hs-x').val())||0,
+                        y: parseFloat($(this).find('.rsyi-hs-y').val())||0,
+                        w: parseFloat($(this).find('.rsyi-hs-w').val())||10,
+                        h: parseFloat($(this).find('.rsyi-hs-h').val())||10
+                    });
+                });
+                options        = JSON.stringify({ regions: regions });
+                correct_answer = String(correctRegion);
+                break;
+            }
+            case 'coding':
+                options = JSON.stringify({
+                    language:     $('#rsyi-q-coding-lang').val(),
+                    starter_code: $('#rsyi-q-coding-starter').val()
+                });
+                break;
+            case 'file_upload':
+                options = JSON.stringify({
+                    allowed_types: $('#rsyi-q-fileupload-types').val() || 'pdf,doc,docx',
+                    max_mb:        parseInt($('#rsyi-q-fileupload-maxmb').val()) || 10
+                });
+                break;
         }
 
         return { options: options, correct_answer: correct_answer };
     }
 
-    // ── Load & populate form for editing ─────────────────────────────────────
+    // ── Reset form ────────────────────────────────────────────────────────────
     function resetForm() {
         $('#rsyi-q-id').val('');
         $('#rsyi-q-number').val( $('#rsyi-questions-list table tbody tr').length + 1 );
@@ -608,14 +752,21 @@ jQuery(function($){
         $('#rsyi-q-image-preview').hide();
         $('#rsyi-q-fill-answer').val('');
         $('#rsyi-q-ref-answer').val('');
-        $('#rsyi-mcq-options').empty();
-        $('#rsyi-matching-pairs').empty();
-        $('#rsyi-ordering-items').empty();
-        $('input[name="rsyi_tf_answer"]').prop('checked', false);
+        $('#rsyi-q-numeric-answer').val('');
+        $('#rsyi-q-numeric-tolerance').val('0');
+        $('#rsyi-q-audio-url').val('');
+        $('#rsyi-q-coding-lang').val('python');
+        $('#rsyi-q-coding-starter').val('');
+        $('#rsyi-q-fileupload-types').val('pdf,doc,docx,jpg,png');
+        $('#rsyi-q-fileupload-maxmb').val('10');
+        $('#rsyi-mcq-options, #rsyi-multiselect-options, #rsyi-dropdown-options, #rsyi-imagechoice-options').empty();
+        $('#rsyi-matching-pairs, #rsyi-ordering-items, #rsyi-dragdrop-items, #rsyi-hotspot-regions').empty();
+        $('input[name="rsyi_tf_answer"], input[name="rsyi_hs_correct"]').prop('checked', false);
         $('#rsyi-q-form-title').text('<?php echo esc_js( __( 'إضافة سؤال جديد', 'rsyi-sa' ) ); ?>');
         $('#rsyi-q-msg').text('');
     }
 
+    // ── Populate form for editing ─────────────────────────────────────────────
     function populateForm(q) {
         $('#rsyi-q-id').val(q.id);
         $('#rsyi-q-number').val(q.question_number);
@@ -625,7 +776,6 @@ jQuery(function($){
         $('#rsyi-q-type').val(q.question_type || 'essay').trigger('change');
         $('#rsyi-q-form-title').text('<?php echo esc_js( __( 'تعديل السؤال', 'rsyi-sa' ) ); ?> #' + q.question_number);
 
-        // Image
         if (q.image_url) {
             $('#rsyi-q-image-id').val(q.image_id);
             $('#rsyi-q-image-thumb').attr('src', q.image_url);
@@ -636,24 +786,86 @@ jQuery(function($){
         }
 
         var type = q.question_type || 'essay';
-        var opts = q.options ? JSON.parse(q.options) : null;
+        var opts = null;
+        try { opts = q.options ? JSON.parse(q.options) : null; } catch(e) {}
 
-        if (type === 'mcq' && Array.isArray(opts)) {
-            $('#rsyi-mcq-options').empty();
-            opts.forEach(function(o, i){ addMcqOption(o.text, o.correct); });
-        } else if (type === 'true_false') {
-            $('input[name="rsyi_tf_answer"][value="' + (q.correct_answer||'true') + '"]').prop('checked', true);
-        } else if (type === 'matching' && Array.isArray(opts)) {
-            $('#rsyi-matching-pairs').empty();
-            opts.forEach(function(p){ addMatchingPair(p.premise, p.match); });
-        } else if (type === 'fill_blank') {
-            $('#rsyi-q-fill-answer').val(q.correct_answer || '');
-        } else if (type === 'short_answer' || type === 'essay') {
-            $('#rsyi-q-ref-answer').val(q.correct_answer || '');
-        } else if (type === 'ordering' && Array.isArray(opts)) {
-            $('#rsyi-ordering-items').empty();
-            opts.sort(function(a,b){ return a.order - b.order; });
-            opts.forEach(function(o){ addOrderingItem(o.text); });
+        switch(type) {
+            case 'mcq':
+                $('#rsyi-mcq-options').empty();
+                if (Array.isArray(opts)) opts.forEach(function(o){ addMcqOption(o.text, o.correct); });
+                break;
+            case 'multi_select':
+                $('#rsyi-multiselect-options').empty();
+                if (Array.isArray(opts)) opts.forEach(function(o){ addMsOption(o.text, o.correct); });
+                break;
+            case 'dropdown':
+                $('#rsyi-dropdown-options').empty();
+                if (Array.isArray(opts)) {
+                    var correctDd = parseInt(q.correct_answer) || 0;
+                    opts.forEach(function(o,i){ addDdOption(o.text, i===correctDd); });
+                }
+                break;
+            case 'true_false':
+                $('input[name="rsyi_tf_answer"][value="' + (q.correct_answer||'true') + '"]').prop('checked', true);
+                break;
+            case 'fill_blank':
+                $('#rsyi-q-fill-answer').val(q.correct_answer || '');
+                break;
+            case 'numeric':
+                $('#rsyi-q-numeric-answer').val(q.correct_answer || '');
+                if (opts && opts.tolerance !== undefined) $('#rsyi-q-numeric-tolerance').val(opts.tolerance);
+                break;
+            case 'short_answer':
+            case 'essay':
+                $('#rsyi-q-ref-answer').val(q.correct_answer || '');
+                break;
+            case 'matching':
+                $('#rsyi-matching-pairs').empty();
+                if (Array.isArray(opts)) opts.forEach(function(p){ addMatchingPair(p.premise, p.match); });
+                break;
+            case 'ordering':
+                $('#rsyi-ordering-items').empty();
+                if (Array.isArray(opts)) {
+                    opts.sort(function(a,b){ return a.order-b.order; });
+                    opts.forEach(function(o){ addOrderingItem(o.text); });
+                }
+                break;
+            case 'drag_drop':
+                $('#rsyi-dragdrop-items').empty();
+                if (Array.isArray(opts)) {
+                    opts.sort(function(a,b){ return a.order-b.order; });
+                    opts.forEach(function(o){ addDragDropItem(o.text); });
+                }
+                break;
+            case 'image_choice':
+                $('#rsyi-imagechoice-options').empty();
+                if (Array.isArray(opts)) opts.forEach(function(o){ addIcOption(o.text, o.correct); });
+                break;
+            case 'hotspot':
+                $('#rsyi-hotspot-regions').empty();
+                if (opts && Array.isArray(opts.regions)) {
+                    var correctHs = parseInt(q.correct_answer) || 0;
+                    opts.regions.forEach(function(r,i){
+                        addHotspotRegion(r.label, r.x, r.y, r.w, r.h, i===correctHs);
+                    });
+                }
+                break;
+            case 'coding':
+                if (opts) {
+                    $('#rsyi-q-coding-lang').val(opts.language || 'python');
+                    $('#rsyi-q-coding-starter').val(opts.starter_code || '');
+                }
+                break;
+            case 'file_upload':
+                if (opts) {
+                    $('#rsyi-q-fileupload-types').val(opts.allowed_types || 'pdf,doc,docx,jpg,png');
+                    $('#rsyi-q-fileupload-maxmb').val(opts.max_mb || 10);
+                }
+                break;
+            case 'audio':
+                $('#rsyi-q-ref-answer').val(q.correct_answer || '');
+                if (opts) $('#rsyi-q-audio-url').val(opts.audio_url || '');
+                break;
         }
 
         $('#rsyi-q-msg').text('');

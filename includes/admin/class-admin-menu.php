@@ -1215,6 +1215,7 @@ class Menu {
                         break;
 
                     case 'ordering':
+                    case 'drag_drop':
                         // options: [{"text":"...","order":int},...]
                         // answer_data: JSON array of texts in student's order
                         $correct_items = $q->options ? json_decode( $q->options, true ) : [];
@@ -1226,8 +1227,71 @@ class Menu {
                         }
                         break;
 
+                    case 'multi_select':
+                        // options: [{"text":"...","correct":bool},...]
+                        // answer_data: JSON array of chosen indices
+                        $opts = $q->options ? json_decode( $q->options, true ) : [];
+                        $chosen_arr = json_decode( $answer, true );
+                        if ( is_array( $opts ) && is_array( $chosen_arr ) ) {
+                            $correct_indices = [];
+                            foreach ( $opts as $oi => $opt ) {
+                                if ( ! empty( $opt['correct'] ) ) $correct_indices[] = $oi;
+                            }
+                            $chosen_sorted  = array_map( 'intval', $chosen_arr );
+                            sort( $chosen_sorted );
+                            sort( $correct_indices );
+                            $is_correct = ( $chosen_sorted === $correct_indices );
+                        }
+                        break;
+
+                    case 'dropdown':
+                    case 'image_choice':
+                        // Same logic as MCQ: single index selection
+                        $opts   = $q->options ? json_decode( $q->options, true ) : [];
+                        $chosen = (int) $answer;
+                        if ( isset( $opts[ $chosen ] ) && ! empty( $opts[ $chosen ]['correct'] ) ) {
+                            $is_correct = true;
+                        }
+                        break;
+
+                    case 'numeric':
+                        // correct_answer: "42" or "42±2" for tolerance
+                        $ca  = trim( $q->correct_answer ?? '' );
+                        $tol = 0;
+                        if ( strpos( $ca, '±' ) !== false ) {
+                            [ $ca, $tol ] = explode( '±', $ca, 2 );
+                            $tol = (float) trim( $tol );
+                        }
+                        $student_num = (float) trim( is_array( $answer ) ? '' : $answer );
+                        $is_correct  = ( abs( $student_num - (float) $ca ) <= $tol );
+                        break;
+
+                    case 'hotspot':
+                        // options: [{"x":float,"y":float,"width":float,"height":float},...]
+                        // answer_data: JSON {"x":float,"y":float}
+                        $regions   = $q->options ? json_decode( $q->options, true ) : [];
+                        $click_raw = json_decode( $answer, true );
+                        if ( is_array( $regions ) && is_array( $click_raw ) ) {
+                            $cx = (float) ( $click_raw['x'] ?? -1 );
+                            $cy = (float) ( $click_raw['y'] ?? -1 );
+                            foreach ( $regions as $region ) {
+                                $rx = (float) ( $region['x'] ?? 0 );
+                                $ry = (float) ( $region['y'] ?? 0 );
+                                $rw = (float) ( $region['width'] ?? 0 );
+                                $rh = (float) ( $region['height'] ?? 0 );
+                                if ( $cx >= $rx && $cx <= $rx + $rw && $cy >= $ry && $cy <= $ry + $rh ) {
+                                    $is_correct = true;
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+
                     case 'short_answer':
                     case 'essay':
+                    case 'coding':
+                    case 'file_upload':
+                    case 'audio':
                     default:
                         // No auto-grading for open-ended types
                         continue 2;
@@ -1511,6 +1575,7 @@ class Menu {
                         break;
 
                     case 'ordering':
+                    case 'drag_drop':
                         $correct_items = $q->options ? json_decode( $q->options, true ) : [];
                         $student_order = is_array( $answer ) ? $answer : json_decode( $answer, true );
                         if ( is_array( $correct_items ) && is_array( $student_order ) ) {
@@ -1519,6 +1584,61 @@ class Menu {
                         }
                         break;
 
+                    case 'multi_select':
+                        $opts = $q->options ? json_decode( $q->options, true ) : [];
+                        $chosen_arr = is_array( $answer ) ? $answer : json_decode( $answer, true );
+                        if ( is_array( $opts ) && is_array( $chosen_arr ) ) {
+                            $correct_indices = [];
+                            foreach ( $opts as $oi => $opt ) {
+                                if ( ! empty( $opt['correct'] ) ) $correct_indices[] = $oi;
+                            }
+                            $chosen_sorted = array_map( 'intval', $chosen_arr );
+                            sort( $chosen_sorted );
+                            sort( $correct_indices );
+                            $is_correct = ( $chosen_sorted === $correct_indices );
+                        }
+                        break;
+
+                    case 'dropdown':
+                    case 'image_choice':
+                        $opts   = $q->options ? json_decode( $q->options, true ) : [];
+                        $chosen = (int) ( is_array( $answer ) ? 0 : $answer );
+                        $is_correct = isset( $opts[ $chosen ] ) && ! empty( $opts[ $chosen ]['correct'] );
+                        break;
+
+                    case 'numeric':
+                        $ca  = trim( $q->correct_answer ?? '' );
+                        $tol = 0;
+                        if ( strpos( $ca, '±' ) !== false ) {
+                            [ $ca, $tol ] = explode( '±', $ca, 2 );
+                            $tol = (float) trim( $tol );
+                        }
+                        $student_num = (float) trim( is_array( $answer ) ? '' : $answer );
+                        $is_correct  = ( abs( $student_num - (float) $ca ) <= $tol );
+                        break;
+
+                    case 'hotspot':
+                        $regions   = $q->options ? json_decode( $q->options, true ) : [];
+                        $click_raw = is_array( $answer ) ? $answer : json_decode( $answer, true );
+                        if ( is_array( $regions ) && is_array( $click_raw ) ) {
+                            $cx = (float) ( $click_raw['x'] ?? -1 );
+                            $cy = (float) ( $click_raw['y'] ?? -1 );
+                            foreach ( $regions as $region ) {
+                                $rx = (float) ( $region['x'] ?? 0 );
+                                $ry = (float) ( $region['y'] ?? 0 );
+                                $rw = (float) ( $region['width'] ?? 0 );
+                                $rh = (float) ( $region['height'] ?? 0 );
+                                if ( $cx >= $rx && $cx <= $rx + $rw && $cy >= $ry && $cy <= $ry + $rh ) {
+                                    $is_correct = true;
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+
+                    case 'coding':
+                    case 'file_upload':
+                    case 'audio':
                     default:
                         continue 2;
                 }
