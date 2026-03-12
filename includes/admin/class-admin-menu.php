@@ -577,10 +577,14 @@ class Menu {
 
         global $wpdb;
 
-        // Ensure all new columns exist before attempting the INSERT.
+        // Try to add missing columns (may silently fail on restricted hosting).
         \RSYI_SA\DB_Installer::run_column_migrations();
 
-        $inserted = $wpdb->insert( $wpdb->prefix . 'rsyi_exams', [
+        // Build INSERT data from only the columns that actually exist in the table.
+        // This prevents "Unknown column" errors if ALTER TABLE was blocked.
+        $existing_cols = $wpdb->get_col( "SHOW COLUMNS FROM `{$wpdb->prefix}rsyi_exams`" );
+
+        $all_data = [
             'cohort_id'     => $cohort_id ?: null,
             'title'         => $title,
             'description'   => $desc,
@@ -597,7 +601,10 @@ class Menu {
             'allow_regrade' => $allow_regrade,
             'is_active'     => 1,
             'created_by'    => get_current_user_id(),
-        ] );
+        ];
+        $data = array_intersect_key( $all_data, array_flip( $existing_cols ) );
+
+        $inserted = $wpdb->insert( $wpdb->prefix . 'rsyi_exams', $data );
 
         if ( ! $inserted ) {
             // Always include DB error so admin can see the real reason.
@@ -761,26 +768,27 @@ class Menu {
         global $wpdb;
         \RSYI_SA\DB_Installer::run_column_migrations();
 
-        $wpdb->update(
-            $wpdb->prefix . 'rsyi_exams',
-            [
-                'title'         => $title,
-                'subject'       => $subject ?: null,
-                'cohort_id'     => $cohort_id ?: null,
-                'starts_at'     => $starts_at,
-                'ends_at'       => $ends_at,
-                'duration_min'  => $duration_min ?: null,
-                'max_score'     => $max_score ?: 100,
-                'passing_score' => $passing_score,
-                'exam_type'     => $exam_type,
-                'status'        => $status,
-                'description'   => $desc,
-                'show_results'  => $show_results,
-                'auto_grade'    => $auto_grade,
-                'allow_regrade' => $allow_regrade,
-            ],
-            [ 'id' => $exam_id ]
-        );
+        $existing_cols = $wpdb->get_col( "SHOW COLUMNS FROM `{$wpdb->prefix}rsyi_exams`" );
+
+        $all_data = [
+            'title'         => $title,
+            'subject'       => $subject ?: null,
+            'cohort_id'     => $cohort_id ?: null,
+            'starts_at'     => $starts_at,
+            'ends_at'       => $ends_at,
+            'duration_min'  => $duration_min ?: null,
+            'max_score'     => $max_score ?: 100,
+            'passing_score' => $passing_score,
+            'exam_type'     => $exam_type,
+            'status'        => $status,
+            'description'   => $desc,
+            'show_results'  => $show_results,
+            'auto_grade'    => $auto_grade,
+            'allow_regrade' => $allow_regrade,
+        ];
+        $data = array_intersect_key( $all_data, array_flip( $existing_cols ) );
+
+        $wpdb->update( $wpdb->prefix . 'rsyi_exams', $data, [ 'id' => $exam_id ] );
 
         \RSYI_SA\Audit_Log::log( 'exam', $exam_id, 'update', [ 'title' => $title ] );
 

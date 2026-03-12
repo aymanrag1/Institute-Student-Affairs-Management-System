@@ -57,16 +57,17 @@ class DB_Installer {
         $p = $wpdb->prefix;
 
         // Helper: add a column if it does not already exist.
+        // Uses SHOW COLUMNS which works on all MySQL setups without extra privileges.
         $add_col = static function( string $table, string $column, string $definition ) use ( $wpdb ): void {
-            $exists = $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME   = %s
-                   AND COLUMN_NAME  = %s",
-                $table, $column
-            ) );
-            if ( ! $exists ) {
-                $wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN {$definition}" ); // phpcs:ignore
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $cols = $wpdb->get_col( "SHOW COLUMNS FROM `{$table}`" );
+            if ( ! in_array( $column, $cols, true ) ) {
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                $result = $wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN {$definition}" );
+                // If ALTER fails (e.g. no privilege), log it for debugging.
+                if ( false === $result && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( "RSYI SA migration: failed to add {$column} to {$table}: " . $wpdb->last_error );
+                }
             }
         };
 
