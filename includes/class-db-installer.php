@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.3.3';
+    const DB_VERSION        = '1.3.4';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.

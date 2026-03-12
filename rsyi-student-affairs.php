@@ -3,7 +3,7 @@
  * Plugin Name:       RSYI Student Affairs Management System
  * Plugin URI:        https://redsea-yacht-institute.com
  * Description:       Complete Student Affairs Management System for Red Sea Yacht Institute (El Gouna). Manages student accounts, mandatory documents, exit/overnight permits, behavior violations, cohort governance, and expulsion workflow.
- * Version:           1.3.3
+ * Version:           1.3.4
  * Requires at least: 6.0
  * Requires PHP:      8.0
  * Author:            RSYI Dev Team
@@ -20,7 +20,7 @@
 defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-define( 'RSYI_SA_VERSION',     '1.3.3' );
+define( 'RSYI_SA_VERSION',     '1.3.4' );
 define( 'RSYI_SA_PLUGIN_FILE', __FILE__ );
 define( 'RSYI_SA_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'RSYI_SA_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );

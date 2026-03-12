@@ -588,7 +588,8 @@ class Menu {
         ] );
 
         if ( ! $inserted ) {
-            wp_send_json_error( [ 'message' => __( 'فشل في إنشاء الامتحان. يرجى المحاولة مرة أخرى.', 'rsyi-sa' ) ] );
+            $err = defined( 'WP_DEBUG' ) && WP_DEBUG ? ' [DB: ' . $wpdb->last_error . ']' : '';
+            wp_send_json_error( [ 'message' => __( 'فشل في إنشاء الامتحان. يرجى المحاولة مرة أخرى.', 'rsyi-sa' ) . $err ] );
         }
 
         $exam_id = (int) $wpdb->insert_id;
