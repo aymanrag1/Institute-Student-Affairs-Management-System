@@ -555,7 +555,7 @@ class Menu {
         }
 
         global $wpdb;
-        $wpdb->insert( $wpdb->prefix . 'rsyi_exams', [
+        $inserted = $wpdb->insert( $wpdb->prefix . 'rsyi_exams', [
             'cohort_id'     => $cohort_id ?: null,
             'title'         => $title,
             'description'   => $desc,
@@ -570,14 +570,20 @@ class Menu {
             'created_by'    => get_current_user_id(),
         ] );
 
-        \RSYI_SA\Audit_Log::log( 'exam', $wpdb->insert_id, 'create', [
+        if ( ! $inserted ) {
+            wp_send_json_error( [ 'message' => __( 'فشل في إنشاء الامتحان. يرجى المحاولة مرة أخرى.', 'rsyi-sa' ) ] );
+        }
+
+        $exam_id = (int) $wpdb->insert_id;
+
+        \RSYI_SA\Audit_Log::log( 'exam', $exam_id, 'create', [
             'title'     => $title,
             'cohort_id' => $cohort_id,
         ] );
 
         wp_send_json_success( [
             'message'  => __( 'تم إنشاء الامتحان بنجاح.', 'rsyi-sa' ),
-            'exam_id'  => $wpdb->insert_id,
+            'exam_id'  => $exam_id,
         ] );
     }
 
