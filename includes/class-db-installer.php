@@ -13,13 +13,15 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.3.4';
+    const DB_VERSION        = '1.3.5';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
+     * Runs on every plugin (re)activation via register_activation_hook.
      */
     public static function activate(): void {
         self::create_tables();
+        self::run_column_migrations();
         Roles::add_roles();
         self::create_upload_dir();
         self::seed_violation_types();
@@ -36,62 +38,58 @@ class DB_Installer {
 
         $charset = $wpdb->get_charset_collate();
 
-        $sqls = self::get_table_sql( $charset );
-
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        foreach ( $sqls as $sql ) {
+        foreach ( self::get_table_sql( $charset ) as $sql ) {
             dbDelta( $sql );
         }
-
-        // Explicit column migrations — dbDelta does not reliably ADD columns
-        // to existing tables, so we do it manually with existence checks.
-        self::run_column_migrations();
     }
 
     /**
-     * Explicit ALTER TABLE migrations for new columns added to existing tables.
-     * Each entry is idempotent: checks SHOW COLUMNS before running ALTER.
+     * Explicit ALTER TABLE migrations — idempotent, safe to call repeatedly.
+     *
+     * dbDelta() does not reliably add new columns to existing tables, so we
+     * use SHOW COLUMNS + ALTER TABLE. Each column is checked before altering.
      */
     public static function run_column_migrations(): void {
         global $wpdb;
         $p = $wpdb->prefix;
 
-        // Helper: add a column if it does not already exist.
-        // Uses SHOW COLUMNS which works on all MySQL setups without extra privileges.
-        $add_col = static function( string $table, string $column, string $definition ) use ( $wpdb ): void {
+        // Map: table => [ column => 'TYPE DEFINITION' ]
+        $migrations = [
+            $p . 'rsyi_exams' => [
+                'starts_at'     => 'DATETIME DEFAULT NULL',
+                'ends_at'       => 'DATETIME DEFAULT NULL',
+                'show_results'  => 'TINYINT(1) NOT NULL DEFAULT 1',
+                'auto_grade'    => 'TINYINT(1) NOT NULL DEFAULT 1',
+                'allow_regrade' => 'TINYINT(1) NOT NULL DEFAULT 1',
+            ],
+            $p . 'rsyi_exam_questions' => [
+                'question_type'  => "VARCHAR(30) NOT NULL DEFAULT 'essay'",
+                'options'        => 'LONGTEXT DEFAULT NULL',
+                'correct_answer' => 'TEXT DEFAULT NULL',
+                'explanation'    => 'TEXT DEFAULT NULL',
+            ],
+            $p . 'rsyi_exam_results' => [
+                'submitted_at' => 'DATETIME DEFAULT NULL',
+                'auto_graded'  => 'TINYINT(1) NOT NULL DEFAULT 0',
+                'regraded_by'  => 'BIGINT UNSIGNED DEFAULT NULL',
+                'regraded_at'  => 'DATETIME DEFAULT NULL',
+            ],
+        ];
+
+        foreach ( $migrations as $table => $columns ) {
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            $cols = $wpdb->get_col( "SHOW COLUMNS FROM `{$table}`" );
-            if ( ! in_array( $column, $cols, true ) ) {
-                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                $result = $wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN {$definition}" );
-                // If ALTER fails (e.g. no privilege), log it for debugging.
-                if ( false === $result && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                    error_log( "RSYI SA migration: failed to add {$column} to {$table}: " . $wpdb->last_error );
+            $existing = $wpdb->get_col( "SHOW COLUMNS FROM `{$table}`" );
+            if ( empty( $existing ) ) {
+                continue; // table doesn't exist yet — dbDelta will create it
+            }
+            foreach ( $columns as $col => $definition ) {
+                if ( ! in_array( $col, $existing, true ) ) {
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                    $wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN `{$col}` {$definition}" );
                 }
             }
-        };
-
-        // ── rsyi_exams: new columns added in v1.3.3 ───────────────────────────
-        $exams = $p . 'rsyi_exams';
-        $add_col( $exams, 'starts_at',     'starts_at     DATETIME         DEFAULT NULL' );
-        $add_col( $exams, 'ends_at',       'ends_at        DATETIME         DEFAULT NULL' );
-        $add_col( $exams, 'show_results',  'show_results   TINYINT(1)       NOT NULL DEFAULT 1' );
-        $add_col( $exams, 'auto_grade',    'auto_grade     TINYINT(1)       NOT NULL DEFAULT 1' );
-        $add_col( $exams, 'allow_regrade', 'allow_regrade  TINYINT(1)       NOT NULL DEFAULT 1' );
-
-        // ── rsyi_exam_questions: new columns added in v1.3.3 ──────────────────
-        $questions = $p . 'rsyi_exam_questions';
-        $add_col( $questions, 'question_type',  "question_type  VARCHAR(30)  NOT NULL DEFAULT 'essay'" );
-        $add_col( $questions, 'options',        'options         LONGTEXT     DEFAULT NULL' );
-        $add_col( $questions, 'correct_answer', 'correct_answer  TEXT         DEFAULT NULL' );
-        $add_col( $questions, 'explanation',    'explanation     TEXT         DEFAULT NULL' );
-
-        // ── rsyi_exam_results: new columns added in v1.3.3 ────────────────────
-        $results = $p . 'rsyi_exam_results';
-        $add_col( $results, 'submitted_at', 'submitted_at DATETIME         DEFAULT NULL' );
-        $add_col( $results, 'auto_graded',  'auto_graded  TINYINT(1)       NOT NULL DEFAULT 0' );
-        $add_col( $results, 'regraded_by',  'regraded_by  BIGINT UNSIGNED  DEFAULT NULL' );
-        $add_col( $results, 'regraded_at',  'regraded_at  DATETIME         DEFAULT NULL' );
+        }
     }
 
     /**
