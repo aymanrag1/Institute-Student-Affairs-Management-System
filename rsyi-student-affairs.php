@@ -27,6 +27,10 @@ define( 'RSYI_SA_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
 define( 'RSYI_SA_UPLOAD_DIR',  WP_CONTENT_DIR . '/uploads/rsyi-docs' );
 define( 'RSYI_SA_UPLOAD_URL',  WP_CONTENT_URL  . '/uploads/rsyi-docs' );
 
+// ─── Language / Bilingual Support ────────────────────────────────────────────
+require_once plugin_dir_path( __FILE__ ) . 'includes/class-language.php';
+RSYI_Language::init();
+
 // ─── Autoloader ───────────────────────────────────────────────────────────────
 // NOTE: We use substr() to strip the 'RSYI_SA\' prefix and keep the remaining
 // namespace path with its original backslashes so map keys match exactly.
