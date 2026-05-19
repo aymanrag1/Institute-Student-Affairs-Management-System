@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.3.6';
+    const DB_VERSION        = '1.3.7';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -529,6 +529,49 @@ class DB_Installer {
                 KEY idx_audit_action (action),
                 KEY idx_audit_date   (created_at)
             ) $charset;",
+
+            // ── Library Books ────────────────────────────────────────
+            "CREATE TABLE {$p}rsyi_books (
+                id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                title_ar         VARCHAR(255)    NOT NULL,
+                title_en         VARCHAR(255)    NOT NULL,
+                author           VARCHAR(255)    DEFAULT NULL,
+                category         VARCHAR(30)     NOT NULL DEFAULT 'general',
+                language         VARCHAR(50)     NOT NULL DEFAULT 'en',
+                isbn             VARCHAR(50)     DEFAULT NULL,
+                description      TEXT            DEFAULT NULL,
+                cover_image_id   BIGINT UNSIGNED DEFAULT NULL,
+                total_copies     INT UNSIGNED    NOT NULL DEFAULT 1,
+                available_copies INT UNSIGNED    NOT NULL DEFAULT 1,
+                is_active        TINYINT(1)      NOT NULL DEFAULT 1,
+                added_by         BIGINT UNSIGNED DEFAULT NULL,
+                created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_books_category (category),
+                KEY idx_books_active   (is_active),
+                KEY idx_books_lang     (language)
+            ) $charset;",
+
+            // ── Library Book Issues ───────────────────────────────────
+            "CREATE TABLE {$p}rsyi_book_issues (
+                id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                book_id      BIGINT UNSIGNED NOT NULL,
+                student_id   BIGINT UNSIGNED NOT NULL,
+                issued_by    BIGINT UNSIGNED NOT NULL,
+                issued_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                due_date     DATE            NOT NULL,
+                returned_at  DATETIME        DEFAULT NULL,
+                return_notes TEXT            DEFAULT NULL,
+                status       VARCHAR(20)     NOT NULL DEFAULT 'issued',
+                created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_issue_book    (book_id),
+                KEY idx_issue_student (student_id),
+                KEY idx_issue_status  (status),
+                KEY idx_issue_due     (due_date)
+            ) $charset;",
         ];
     }
 
@@ -626,6 +669,12 @@ class DB_Installer {
                 'title'     => 'My Exams',
                 'shortcode' => '[rsyi_portal_exams]',
                 'option'    => 'rsyi_page_exams',
+            ],
+            [
+                'slug'      => 'student-library',
+                'title'     => 'Library',
+                'shortcode' => '[rsyi_portal_library]',
+                'option'    => 'rsyi_page_library',
             ],
         ];
 

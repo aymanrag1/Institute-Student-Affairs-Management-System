@@ -69,6 +69,9 @@ class Roles {
             'rsyi_delete_exam'               => true,
             'rsyi_view_exam_stats'           => true,
             'rsyi_export_exam_results'       => true,
+            // Library
+            'rsyi_manage_library'            => true,
+            'rsyi_view_library'              => true,
         ];
     }
 
@@ -221,6 +224,9 @@ class Roles {
                     'rsyi_delete_exam'             => true,
                     'rsyi_view_exam_stats'         => true,
                     'rsyi_export_exam_results'     => true,
+                    // Library management
+                    'rsyi_manage_library'          => true,
+                    'rsyi_view_library'            => true,
                 ],
             ],
 
@@ -235,6 +241,7 @@ class Roles {
                     'rsyi_delete_exam'             => true,
                     'rsyi_view_exam_stats'         => true,
                     'rsyi_export_exam_results'     => true,
+                    'rsyi_view_library'            => true,
                 ],
             ],
 
@@ -249,6 +256,7 @@ class Roles {
                     'rsyi_delete_exam'             => true,
                     'rsyi_view_exam_stats'         => true,
                     'rsyi_export_exam_results'     => true,
+                    'rsyi_view_library'            => true,
                 ],
             ],
 
@@ -267,6 +275,7 @@ class Roles {
                     'rsyi_view_own_exam_results'     => true,
                     'rsyi_view_own_attendance'       => true,
                     'rsyi_take_exam'                 => true,
+                    'rsyi_view_library'              => true,
                 ],
             ],
         ];

@@ -3,7 +3,7 @@
  * Plugin Name:       RSYI Student Affairs Management System
  * Plugin URI:        https://redsea-yacht-institute.com
  * Description:       Complete Student Affairs Management System for Red Sea Yacht Institute (El Gouna). Manages student accounts, mandatory documents, exit/overnight permits, behavior violations, cohort governance, and expulsion workflow.
- * Version:           1.3.6
+ * Version:           1.3.7
  * Requires at least: 6.0
  * Requires PHP:      8.0
  * Author:            RSYI Dev Team
@@ -20,7 +20,7 @@
 defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-define( 'RSYI_SA_VERSION',     '1.3.6' );
+define( 'RSYI_SA_VERSION',     '1.3.7' );
 define( 'RSYI_SA_PLUGIN_FILE', __FILE__ );
 define( 'RSYI_SA_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'RSYI_SA_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -59,6 +59,7 @@ spl_autoload_register( function ( string $class ): void {
         'Modules\\Cohorts'           => 'includes/modules/class-cohorts.php',
         'Modules\\Evaluations'       => 'includes/modules/class-evaluations.php',
         'Admin\\Menu'                => 'includes/admin/class-admin-menu.php',
+        'Modules\\Library'           => 'includes/modules/class-library.php',
         'Portal\\Shortcodes'         => 'includes/portal/class-portal-shortcodes.php',
     ];
 
@@ -143,6 +144,7 @@ function rsyi_sa_init(): void {
     RSYI_SA\Modules\Behavior::init();
     RSYI_SA\Modules\Cohorts::init();
     RSYI_SA\Modules\Evaluations::init();
+    RSYI_SA\Modules\Library::init();
 
     // GitHub update checker (runs on both front and back end checks)
     RSYI_SA\Updater::init();

@@ -920,6 +920,30 @@ class RSYI_Language {
 		'سجل الأحداث'                       => 'Audit Log',
 		'الإعدادات'                         => 'Settings',
 		'تحديث البرنامج'                    => 'Update Plugin',
+		// Library
+		'مخزن الكتب'                        => 'Book Library',
+		'إضافة كتاب'                        => 'Add Book',
+		'تعديل كتاب'                        => 'Edit Book',
+		'حذف كتاب'                          => 'Delete Book',
+		'مناهج أجنبية'                      => 'Foreign Curricula',
+		'شهادات'                            => 'Certificates',
+		'صرف كتاب'                          => 'Issue Book',
+		'إعادة كتاب'                        => 'Return Book',
+		'تاريخ الإعادة'                     => 'Due Date',
+		'مستعار'                            => 'Issued',
+		'مُعاد'                             => 'Returned',
+		'متأخر'                             => 'Overdue',
+		'نسخ متاحة'                         => 'Available Copies',
+		'عدد النسخ الكلي'                   => 'Total Copies',
+		'كتبي المستعارة'                    => 'My Borrowed Books',
+		'سجل الصرف'                         => 'Issue Log',
+		'المؤلف'                            => 'Author',
+		'صورة الغلاف'                       => 'Cover Image',
+		'الوصف'                             => 'Description',
+		'في الموعد'                         => 'On time',
+		'لا توجد كتب متاحة حالياً'          => 'No books available at the moment',
+		'كل التصنيفات'                      => 'All Categories',
+		'كل اللغات'                         => 'All Languages',
 	];
 
 
@@ -1319,6 +1343,29 @@ class RSYI_Language {
 
 		// ── Portal navigation ──────────────────────────────────────────
 		'← Sign Out'                         => '← تسجيل الخروج',
+		// Library
+		'Book Library'                        => 'مخزن الكتب',
+		'Add Book'                            => 'إضافة كتاب',
+		'Edit Book'                           => 'تعديل كتاب',
+		'Delete Book'                         => 'حذف كتاب',
+		'Foreign Curricula'                   => 'مناهج أجنبية',
+		'Certificates'                        => 'شهادات',
+		'Issue Book'                          => 'صرف كتاب',
+		'Return Book'                         => 'إعادة كتاب',
+		'Due Date'                            => 'تاريخ الإعادة',
+		'Issued'                              => 'مصروف',
+		'Returned'                            => 'مُعاد',
+		'Overdue'                             => 'متأخر',
+		'Available Copies'                    => 'نسخ متاحة',
+		'Total Copies'                        => 'إجمالي النسخ',
+		'My Borrowed Books'                   => 'كتبي المستعارة',
+		'Issue Log'                           => 'سجل الصرف',
+		'Author'                              => 'المؤلف',
+		'Cover Image'                         => 'صورة الغلاف',
+		'On time'                             => 'في الموعد',
+		'No books available at the moment'    => 'لا توجد كتب متاحة حالياً',
+		'All Categories'                      => 'كل التصنيفات',
+		'All Languages'                       => 'كل اللغات',
 	];
 
 } // end class RSYI_Language

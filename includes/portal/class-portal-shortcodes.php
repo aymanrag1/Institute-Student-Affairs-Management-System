@@ -31,6 +31,7 @@ class Shortcodes {
             'rsyi_portal_grades'             => 'render_grades',
             'rsyi_portal_attendance_record'  => 'render_attendance_record',
             'rsyi_portal_exams'              => 'render_exams',
+            'rsyi_portal_library'            => 'render_library',
         ];
         foreach ( $codes as $tag => $method ) {
             add_shortcode( $tag, [ __CLASS__, $method ] );
@@ -372,5 +373,18 @@ class Shortcodes {
         }
 
         return self::render_template( 'exam-take', compact( 'exam', 'questions', 'profile', 'now' ) );
+    }
+
+    public static function render_library( $atts ): string {
+        $profile = self::require_student();
+        if ( ! $profile ) {
+            return '<div class="rsyi-notice rsyi-notice-error">يجب تسجيل الدخول لعرض المكتبة / Please log in to view the library.</div>';
+        }
+        if ( ! current_user_can( 'rsyi_view_library' ) ) {
+            return '<div class="rsyi-notice rsyi-notice-error">غير مصرح / Unauthorized</div>';
+        }
+        $books     = \RSYI_SA\Modules\Library::get_available_books();
+        $my_issues = \RSYI_SA\Modules\Library::get_student_issues( $profile->id );
+        return self::render_template( 'library', compact( 'books', 'my_issues' ) );
     }
 }

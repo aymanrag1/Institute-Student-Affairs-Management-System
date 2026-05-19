@@ -82,6 +82,7 @@ class Menu {
             [ 'rsyi-cohorts',      __( 'Cohorts', 'rsyi-sa' ),             'rsyi_manage_cohorts',       [ __CLASS__, 'page_cohorts' ] ],
             [ 'rsyi-evaluations',  __( 'Evaluations', 'rsyi-sa' ),         'rsyi_view_evaluations',     [ __CLASS__, 'page_evaluations' ] ],
             [ 'rsyi-daily-report', __( 'Daily Report PDF', 'rsyi-sa' ),    'rsyi_print_daily_report',   [ __CLASS__, 'page_daily_report' ] ],
+            [ 'rsyi-library',      __( 'Library / مخزن الكتب', 'rsyi-sa' ), 'rsyi_manage_library',       [ __CLASS__, 'page_library' ] ],
             [ 'rsyi-audit',        __( 'Audit Log', 'rsyi-sa' ),           'rsyi_view_audit_log',       [ __CLASS__, 'page_audit_log' ] ],
             [ 'rsyi-roles',        __( 'Roles & Permissions', 'rsyi-sa' ), 'rsyi_manage_roles',         [ __CLASS__, 'page_roles' ] ],
             [ 'rsyi-settings',     __( 'Settings', 'rsyi-sa' ),            'rsyi_manage_settings',      [ __CLASS__, 'page_settings' ] ],
@@ -202,6 +203,13 @@ class Menu {
 
     public static function page_settings(): void {
         self::render( 'settings' );
+    }
+
+    public static function page_library(): void {
+        // Ensure media scripts available (cover image uploader)
+        wp_enqueue_media();
+        $file = RSYI_SA_PLUGIN_DIR . 'templates/admin/library.php';
+        if ( file_exists( $file ) ) { include $file; }
     }
 
     // ── Template loader ───────────────────────────────────────────────────────
