@@ -363,7 +363,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 
 <script>
 (function($){
-    var nonce=rsyiSA.nonce, ajaxUrl=rsyiSA.ajaxUrl;
+    var nonce='<?= wp_create_nonce('rsyi_sa_admin') ?>', ajaxUrl='<?= esc_url(admin_url('admin-ajax.php')) ?>';
     var booksCache=[], suppliersCache=[];
     var canManage=<?php echo $lib_can_manage?'true':'false'; ?>;
     var canApproveWd=<?php echo $lib_can_approve_wd?'true':'false'; ?>;
