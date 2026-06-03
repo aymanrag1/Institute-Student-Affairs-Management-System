@@ -502,7 +502,25 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     }
 
     // ── HELPERS ───────────────────────────────────────────────────────────────
-    function post(action,data,cb){ $.post(ajaxUrl,$.extend({action:action,nonce:nonce},data),cb); }
+    function post(action,data,cb){
+        $.ajax({
+            url: ajaxUrl,
+            type: 'POST',
+            dataType: 'json',
+            data: $.extend({action:action,nonce:nonce},data),
+            success: cb,
+            error: function(xhr,status,err){
+                console.error('[LibAJAX] '+action+' failed: '+status+' '+err);
+                console.error('[LibAJAX] Response: '+xhr.responseText.substr(0,500));
+                var errDiv=$('#lib-ajax-error');
+                if(!errDiv.length){
+                    errDiv=$('<div id="lib-ajax-error" style="background:#fff3cd;border:1px solid #ffc107;padding:10px;margin:10px 0;border-radius:4px;font-family:monospace;font-size:12px;"></div>');
+                    $('#rsyi-library-page').prepend(errDiv);
+                }
+                errDiv.html('<strong>AJAX Error ['+action+']:</strong> '+status+' – '+err+'<br><small>'+$('<div>').text(xhr.responseText.substr(0,300)).html()+'</small>');
+            }
+        });
+    }
     function msg(el,text,ok){ $(el).show().text(text).css('color',ok?'green':'red'); }
     function openModal(id){ $('#'+id).css('display','flex'); }
     function statusBadge(s){

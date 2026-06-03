@@ -21,7 +21,7 @@ class Library_Reports {
 
     static function ajax_dispatch(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
-        if ( ! current_user_can( 'rsyi_lib_view_warehouse' ) ) {
+        if ( ! current_user_can( 'rsyi_lib_view_warehouse' ) && ! current_user_can( 'manage_options' ) ) {
             wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] );
         }
         $action = sanitize_key( $_POST['action'] ?? '' );
