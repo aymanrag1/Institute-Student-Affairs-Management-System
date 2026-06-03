@@ -443,8 +443,8 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         'dash_zero_stock'    => rsyi_lib_t('رصيد صفري','Zero Stock'),
         'dash_pending_wd'    => rsyi_lib_t('إذن صرف منتظر','Pending Withdrawal'),
         'dash_pending_pr'    => rsyi_lib_t('طلب شراء منتظر','Pending PR'),
-        'dash_today_adds'    => rsyi_lib_t('استلام اليوم','Today Receives'),
-        'dash_today_wd'      => rsyi_lib_t('صرف اليوم','Today Withdrawals'),
+        'dash_today_adds'    => rsyi_lib_t('استلام اليوم',"Today's Receiving"),
+        'dash_today_wd'      => rsyi_lib_t('صرف اليوم',"Today's Withdrawals"),
         'low_tbl_book'       => rsyi_lib_t('الكتاب','Book'),
         'low_tbl_stock'      => rsyi_lib_t('الرصيد','Stock'),
         'low_tbl_min'        => rsyi_lib_t('الحد الأدنى','Min Stock'),
@@ -556,14 +556,14 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             if(!r.success) return;
             var d=r.data;
             var cards=[
-                {num:d.total_books,lbl:'<?= rsyi_lib_t('إجمالي الكتب', 'Total Books') ?>',cls:''},
-                {num:d.total_stock,lbl:'<?= rsyi_lib_t('إجمالي الرصيد', 'Total Stock') ?>',cls:'success'},
-                {num:d.low_stock,lbl:'<?= rsyi_lib_t('على وشك النفاد', 'Low Stock') ?>',cls:'warn'},
-                {num:d.zero_stock,lbl:'<?= rsyi_lib_t('رصيد صفري', 'Zero Stock') ?>',cls:'danger'},
-                {num:d.pending_wd,lbl:'<?= rsyi_lib_t('إذن صرف منتظر', 'Pending Withdrawal') ?>',cls:'warn'},
-                {num:d.pending_pr,lbl:'<?= rsyi_lib_t('طلب شراء منتظر', 'Pending Purchase Request') ?>',cls:'warn'},
-                {num:d.today_adds,lbl:'<?= rsyi_lib_t('استلام اليوم', 'Today\'s Receiving') ?>',cls:''},
-                {num:d.today_withdrawals,lbl:'<?= rsyi_lib_t('صرف اليوم', 'Today\'s Withdrawals') ?>',cls:''},
+                {num:d.total_books,lbl:L.dash_total_books,cls:''},
+                {num:d.total_stock,lbl:L.dash_total_stock,cls:'success'},
+                {num:d.low_stock,lbl:L.dash_low_stock,cls:'warn'},
+                {num:d.zero_stock,lbl:L.dash_zero_stock,cls:'danger'},
+                {num:d.pending_wd,lbl:L.dash_pending_wd,cls:'warn'},
+                {num:d.pending_pr,lbl:L.dash_pending_pr,cls:'warn'},
+                {num:d.today_adds,lbl:L.dash_today_adds,cls:''},
+                {num:d.today_withdrawals,lbl:L.dash_today_wd,cls:''},
             ];
             var html='';
             cards.forEach(function(c){ html+='<div class="rsyi-stat-card '+c.cls+'"><div class="num">'+c.num+'</div><div class="lbl">'+c.lbl+'</div></div>'; });
