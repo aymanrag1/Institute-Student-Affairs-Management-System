@@ -7,6 +7,7 @@ $lib_can_approve_wd   = current_user_can( 'rsyi_lib_approve_withdrawal' ) || cur
 $lib_can_approve_pr   = current_user_can( 'rsyi_lib_approve_purchase' ) || current_user_can( 'manage_options' );
 
 // ── Language helper ─────────────────────────────────────────────────────────
+global $_lib_en;
 $_lib_en = class_exists( 'RSYI_Language' ) && RSYI_Language::get_lang() === 'en';
 if ( ! function_exists( 'rsyi_lib_t' ) ) {
     function rsyi_lib_t( string $ar, string $en ): string {
@@ -51,7 +52,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <input type="text" id="filter-search" placeholder="<?= rsyi_lib_t('بحث…', 'Search…') ?>">
         <button class="button" id="btn-search-books">🔍</button>
     </div>
-    <table class="wp-list-table widefat fixed striped" style="direction:rtl;">
+    <table class="wp-list-table widefat fixed striped" style="direction:<?= $_dir ?>;">
         <thead><tr>
             <th style="width:50px;"><?= rsyi_lib_t('غلاف', 'Cover') ?></th><th><?= rsyi_lib_t('العنوان', 'Title') ?></th><th><?= rsyi_lib_t('المادة', 'Subject') ?></th><th><?= rsyi_lib_t('المستوى', 'Grade') ?></th><th>ISBN</th>
             <th style="width:80px;"><?= rsyi_lib_t('الرصيد', 'Stock') ?></th><th style="width:70px;"><?= rsyi_lib_t('حد أدنى', 'Min') ?></th><th style="width:110px;"><?= rsyi_lib_t('إجراء', 'Action') ?></th>
@@ -77,7 +78,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <div id="sup-msg" style="margin-top:8px;display:none;"></div>
     </div>
     <?php endif; ?>
-    <table class="wp-list-table widefat fixed striped" style="direction:rtl;">
+    <table class="wp-list-table widefat fixed striped" style="direction:<?= $_dir ?>;">
         <thead><tr><th><?= rsyi_lib_t('الاسم', 'Name') ?></th><th><?= rsyi_lib_t('الهاتف', 'Phone') ?></th><th><?= rsyi_lib_t('البريد', 'Email') ?></th><th><?= rsyi_lib_t('العنوان', 'Address') ?></th><th style="width:100px;"><?= rsyi_lib_t('إجراء', 'Action') ?></th></tr></thead>
         <tbody id="suppliers-list"><tr><td colspan="5" style="text-align:center"><?= rsyi_lib_t('جاري التحميل…', 'Loading…') ?></td></tr></tbody>
     </table>
@@ -88,7 +89,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     <?php if($lib_can_manage): ?>
     <div class="rsyi-toolbar"><button class="button button-primary" id="btn-new-add-order">+ <?= rsyi_lib_t('إذن استلام جديد', 'New Receiving Order') ?></button></div>
     <?php endif; ?>
-    <table class="wp-list-table widefat fixed striped" style="direction:rtl;">
+    <table class="wp-list-table widefat fixed striped" style="direction:<?= $_dir ?>;">
         <thead><tr><th><?= rsyi_lib_t('رقم الإذن', 'Order No.') ?></th><th><?= rsyi_lib_t('المورد', 'Supplier') ?></th><th><?= rsyi_lib_t('التاريخ', 'Date') ?></th><th><?= rsyi_lib_t('الكمية', 'Qty') ?></th><th><?= rsyi_lib_t('القيمة', 'Value') ?></th><th style="width:140px;"><?= rsyi_lib_t('إجراء', 'Action') ?></th></tr></thead>
         <tbody id="add-orders-list"><tr><td colspan="6" style="text-align:center"><?= rsyi_lib_t('جاري التحميل…', 'Loading…') ?></td></tr></tbody>
     </table>
@@ -107,7 +108,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         </select>
         <button class="button" id="btn-filter-wd">🔍</button>
     </div>
-    <table class="wp-list-table widefat fixed striped" style="direction:rtl;">
+    <table class="wp-list-table widefat fixed striped" style="direction:<?= $_dir ?>;">
         <thead><tr><th><?= rsyi_lib_t('رقم الإذن', 'Order No.') ?></th><th><?= rsyi_lib_t('المجموعة/المدرب', 'Cohort/Trainer') ?></th><th><?= rsyi_lib_t('النوع', 'Type') ?></th><th><?= rsyi_lib_t('الحالة', 'Status') ?></th><th><?= rsyi_lib_t('بواسطة', 'By') ?></th><th><?= rsyi_lib_t('التاريخ', 'Date') ?></th><th style="width:180px;"><?= rsyi_lib_t('إجراء', 'Action') ?></th></tr></thead>
         <tbody id="wd-orders-list"><tr><td colspan="7" style="text-align:center"><?= rsyi_lib_t('جاري التحميل…', 'Loading…') ?></td></tr></tbody>
     </table>
@@ -118,7 +119,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     <?php if($lib_can_manage): ?>
     <div class="rsyi-toolbar"><button class="button button-primary" id="btn-new-ret-order">+ <?= rsyi_lib_t('إذن رد جديد', 'New Return Order') ?></button></div>
     <?php endif; ?>
-    <table class="wp-list-table widefat fixed striped" style="direction:rtl;">
+    <table class="wp-list-table widefat fixed striped" style="direction:<?= $_dir ?>;">
         <thead><tr><th><?= rsyi_lib_t('رقم الإذن', 'Order No.') ?></th><th><?= rsyi_lib_t('المجموعة/المدرب', 'Cohort/Trainer') ?></th><th><?= rsyi_lib_t('الحالة', 'Status') ?></th><th><?= rsyi_lib_t('التاريخ', 'Date') ?></th><th style="width:130px;"><?= rsyi_lib_t('إجراء', 'Action') ?></th></tr></thead>
         <tbody id="ret-orders-list"><tr><td colspan="5" style="text-align:center"><?= rsyi_lib_t('جاري التحميل…', 'Loading…') ?></td></tr></tbody>
     </table>
@@ -129,7 +130,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     <?php if($lib_can_manage): ?>
     <div class="rsyi-toolbar"><button class="button button-primary" id="btn-new-pr">+ <?= rsyi_lib_t('طلب شراء جديد', 'New Purchase Request') ?></button></div>
     <?php endif; ?>
-    <table class="wp-list-table widefat fixed striped" style="direction:rtl;">
+    <table class="wp-list-table widefat fixed striped" style="direction:<?= $_dir ?>;">
         <thead><tr><th><?= rsyi_lib_t('رقم الطلب', 'Request No.') ?></th><th><?= rsyi_lib_t('الحالة', 'Status') ?></th><th><?= rsyi_lib_t('طالب بواسطة', 'Requested By') ?></th><th><?= rsyi_lib_t('التاريخ', 'Date') ?></th><th style="width:180px;"><?= rsyi_lib_t('إجراء', 'Action') ?></th></tr></thead>
         <tbody id="pr-list"><tr><td colspan="5" style="text-align:center"><?= rsyi_lib_t('جاري التحميل…', 'Loading…') ?></td></tr></tbody>
     </table>
@@ -152,7 +153,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <div id="ob-msg" style="margin-top:8px;display:none;"></div>
     </div>
     <?php endif; ?>
-    <table class="wp-list-table widefat fixed striped" style="direction:rtl;">
+    <table class="wp-list-table widefat fixed striped" style="direction:<?= $_dir ?>;">
         <thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th><?= rsyi_lib_t('الكمية', 'Quantity') ?></th><th><?= rsyi_lib_t('سعر الوحدة', 'Unit Price') ?></th><th><?= rsyi_lib_t('التاريخ', 'Date') ?></th></tr></thead>
         <tbody id="opening-list"><tr><td colspan="4" style="text-align:center"><?= rsyi_lib_t('جاري التحميل…', 'Loading…') ?></td></tr></tbody>
     </table>
@@ -176,7 +177,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 <!-- ═══════════════════════════════ MODALS ═══════════════════════════════ -->
 
 <!-- Book Modal -->
-<div id="book-modal" class="rsyi-modal-overlay" style="display:none;">
+<div id="book-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
 <div class="rsyi-modal-box" style="max-width:750px;">
     <h2 id="bm-title" style="margin-top:0;"><?= rsyi_lib_t('إضافة كتاب', 'Add Book') ?></h2>
     <input type="hidden" id="bm-id" value="0">
@@ -213,7 +214,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 </div></div>
 
 <!-- Add Order Modal -->
-<div id="add-order-modal" class="rsyi-modal-overlay" style="display:none;">
+<div id="add-order-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
 <div class="rsyi-modal-box" style="max-width:820px;max-height:90vh;overflow-y:auto;">
     <h2 id="ao-title" style="margin-top:0;"><?= rsyi_lib_t('إذن استلام', 'Receiving Order') ?></h2>
     <input type="hidden" id="ao-id" value="0">
@@ -232,7 +233,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <strong><?= rsyi_lib_t('الكتب', 'Items') ?>:</strong>
         <button type="button" class="button button-small" id="btn-ao-add-row" style="margin-right:8px;">+ <?= rsyi_lib_t('إضافة سطر', 'Add Row') ?></button>
     </div>
-    <table class="wp-list-table widefat" id="ao-items-table" style="direction:rtl;">
+    <table class="wp-list-table widefat" id="ao-items-table" style="direction:<?= $_dir ?>;">
         <thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th style="width:80px;"><?= rsyi_lib_t('الكمية', 'Qty') ?></th><th style="width:110px;"><?= rsyi_lib_t('سعر الوحدة', 'Unit Price') ?></th><th style="width:40px;"></th></tr></thead>
         <tbody id="ao-items-body"></tbody>
         <tfoot><tr><td colspan="2" style="text-align:left;"><strong><?= rsyi_lib_t('الإجمالي', 'Total') ?>: <span id="ao-total">0.00</span></strong></td><td colspan="2"></td></tr></tfoot>
@@ -245,7 +246,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 </div></div>
 
 <!-- Withdrawal Order Modal -->
-<div id="wd-modal" class="rsyi-modal-overlay" style="display:none;">
+<div id="wd-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
 <div class="rsyi-modal-box" style="max-width:820px;max-height:90vh;overflow-y:auto;">
     <h2 id="wd-title" style="margin-top:0;"><?= rsyi_lib_t('إذن صرف', 'Withdrawal Order') ?></h2>
     <input type="hidden" id="wd-id" value="0">
@@ -269,7 +270,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <strong><?= rsyi_lib_t('الكتب', 'Items') ?>:</strong>
         <button type="button" class="button button-small" id="btn-wd-add-row">+ <?= rsyi_lib_t('إضافة سطر', 'Add Row') ?></button>
     </div>
-    <table class="wp-list-table widefat" id="wd-items-table" style="direction:rtl;">
+    <table class="wp-list-table widefat" id="wd-items-table" style="direction:<?= $_dir ?>;">
         <thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th style="width:80px;"><?= rsyi_lib_t('الكمية', 'Qty') ?></th><th style="width:100px;"><?= rsyi_lib_t('متاح', 'Available') ?></th><th style="width:40px;"></th></tr></thead>
         <tbody id="wd-items-body"></tbody>
     </table>
@@ -282,7 +283,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 </div></div>
 
 <!-- Return Order Modal -->
-<div id="ret-modal" class="rsyi-modal-overlay" style="display:none;">
+<div id="ret-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
 <div class="rsyi-modal-box" style="max-width:750px;max-height:90vh;overflow-y:auto;">
     <h2 id="ret-title" style="margin-top:0;"><?= rsyi_lib_t('إذن رد', 'Return Order') ?></h2>
     <input type="hidden" id="ret-id" value="0">
@@ -303,7 +304,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <strong><?= rsyi_lib_t('الكتب المُعادة', 'Returned Items') ?>:</strong>
         <button type="button" class="button button-small" id="btn-ret-add-row">+ <?= rsyi_lib_t('إضافة سطر', 'Add Row') ?></button>
     </div>
-    <table class="wp-list-table widefat" id="ret-items-table" style="direction:rtl;">
+    <table class="wp-list-table widefat" id="ret-items-table" style="direction:<?= $_dir ?>;">
         <thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th style="width:80px;"><?= rsyi_lib_t('الكمية', 'Qty') ?></th><th style="width:110px;"><?= rsyi_lib_t('الحالة', 'Condition') ?></th><th style="width:40px;"></th></tr></thead>
         <tbody id="ret-items-body"></tbody>
     </table>
@@ -315,7 +316,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 </div></div>
 
 <!-- PR Modal -->
-<div id="pr-modal" class="rsyi-modal-overlay" style="display:none;">
+<div id="pr-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
 <div class="rsyi-modal-box" style="max-width:750px;max-height:90vh;overflow-y:auto;">
     <h2 id="pr-title" style="margin-top:0;"><?= rsyi_lib_t('طلب شراء', 'Purchase Request') ?></h2>
     <input type="hidden" id="pr-id" value="0">
@@ -326,7 +327,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <strong><?= rsyi_lib_t('الكتب', 'Items') ?>:</strong>
         <button type="button" class="button button-small" id="btn-pr-add-row">+ <?= rsyi_lib_t('إضافة سطر', 'Add Row') ?></button>
     </div>
-    <table class="wp-list-table widefat" id="pr-items-table" style="direction:rtl;">
+    <table class="wp-list-table widefat" id="pr-items-table" style="direction:<?= $_dir ?>;">
         <thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th style="width:80px;"><?= rsyi_lib_t('الكمية', 'Qty') ?></th><th style="width:160px;"><?= rsyi_lib_t('ملاحظة', 'Note') ?></th><th style="width:40px;"></th></tr></thead>
         <tbody id="pr-items-body"></tbody>
     </table>
@@ -342,7 +343,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 .rsyi-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0;}
 .rsyi-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;}
 .rsyi-modal-box{background:#fff;border-radius:8px;padding:28px;width:96%;}
-.rsyi-stat-card{background:#fff;border-right:5px solid #0073aa;border-radius:6px;padding:16px 20px;min-width:140px;box-shadow:0 1px 4px rgba(0,0,0,.1);}
+.rsyi-stat-card{background:#fff;border-inline-start:5px solid #0073aa;border-radius:6px;padding:16px 20px;min-width:140px;box-shadow:0 1px 4px rgba(0,0,0,.1);}
 .rsyi-stat-card.warn{border-color:#f0b849;}.rsyi-stat-card.danger{border-color:#dc3232;}.rsyi-stat-card.success{border-color:#46b450;}
 .rsyi-stat-card .num{font-size:2em;font-weight:700;line-height:1.1;}
 .rsyi-stat-card .lbl{font-size:.82em;color:#666;margin-top:4px;}
@@ -354,7 +355,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 .status-pending-r{background:#e67e22;color:#fff;padding:2px 8px;border-radius:10px;font-size:.8em;}
 .report-btn{cursor:pointer;}.report-btn.btn-active{background:#0073aa;color:#fff;border-color:#0073aa;}
 .rsyi-report-table{width:100%;border-collapse:collapse;margin-top:8px;}
-.rsyi-report-table th,.rsyi-report-table td{padding:6px 10px;border:1px solid #ddd;text-align:right;}
+.rsyi-report-table th,.rsyi-report-table td{padding:6px 10px;border:1px solid #ddd;text-align:start;}
 .rsyi-report-table thead{background:#f1f1f1;}
 .rsyi-report-table tr.stock-ok td{background:#f0fff0;}
 .rsyi-report-table tr.stock-low td{background:#fff8e1;}
@@ -551,7 +552,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             $('#lib-stat-cards').html(html);
             // Low stock table
             if(d.low_stock_books&&d.low_stock_books.length){
-                var t='<table class="wp-list-table widefat striped" style="direction:rtl;max-width:700px;"><thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th><?= rsyi_lib_t('الرصيد', 'Stock') ?></th><th><?= rsyi_lib_t('الحد الأدنى', 'Min Stock') ?></th></tr></thead><tbody>';
+                var t='<table class="wp-list-table widefat striped" style="direction:<?= $_dir ?>;max-width:700px;"><thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th><?= rsyi_lib_t('الرصيد', 'Stock') ?></th><th><?= rsyi_lib_t('الحد الأدنى', 'Min Stock') ?></th></tr></thead><tbody>';
                 d.low_stock_books.forEach(function(b){ t+='<tr><td>'+(b.title_ar||b.title_en)+'</td><td style="color:red;">'+b.current_stock+'</td><td>'+b.min_stock+'</td></tr>'; });
                 t+='</tbody></table>';
                 $('#lib-low-table-wrap').html(t);
