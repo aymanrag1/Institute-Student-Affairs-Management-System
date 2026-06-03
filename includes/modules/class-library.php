@@ -50,7 +50,7 @@ class Library {
     // ── Save book (add / edit) ──────────────────────────────────────────────
     static function ajax_save_book(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
-        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) && ! current_user_can( 'rsyi_manage_library' ) ) {
+        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) && ! current_user_can( 'rsyi_manage_library' ) && ! current_user_can( 'manage_options' ) ) {
             wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] );
         }
         global $wpdb;
@@ -91,7 +91,7 @@ class Library {
     // ── Delete book ─────────────────────────────────────────────────────────
     static function ajax_delete_book(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
-        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
+        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
         global $wpdb;
         $id = intval( $_POST['book_id'] ?? 0 );
         if ( ! $id ) { wp_send_json_error( [ 'message' => 'معرف غير صالح / Invalid ID' ] ); }
@@ -108,7 +108,7 @@ class Library {
     // ── Get books (admin) ────────────────────────────────────────────────────
     static function ajax_get_books(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
-        if ( ! current_user_can( 'rsyi_lib_view_warehouse' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
+        if ( ! current_user_can( 'rsyi_lib_view_warehouse' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
         global $wpdb;
         $category = sanitize_key( $_POST['category'] ?? '' );
         $search   = sanitize_text_field( $_POST['search'] ?? '' );
@@ -141,7 +141,7 @@ class Library {
     // ── Legacy simple issue/return (portal fallback) ─────────────────────────
     static function ajax_issue_book(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
-        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
+        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
         global $wpdb;
         $book_id    = intval( $_POST['book_id'] ?? 0 );
         $student_id = intval( $_POST['student_id'] ?? 0 );
@@ -161,7 +161,7 @@ class Library {
 
     static function ajax_return_book(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
-        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
+        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
         global $wpdb;
         $issue_id = intval( $_POST['issue_id'] ?? 0 );
         $notes    = sanitize_textarea_field( $_POST['return_notes'] ?? '' );
@@ -179,7 +179,7 @@ class Library {
 
     static function ajax_get_issues(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
-        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
+        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
         global $wpdb;
         $rows = $wpdb->get_results(
             "SELECT i.*, b.title_ar, b.title_en, p.student_name_ar, p.student_id_number, u.display_name AS issued_by_name
@@ -194,7 +194,7 @@ class Library {
 
     static function ajax_get_student_books(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
-        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
+        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
         global $wpdb;
         $sid  = intval( $_POST['student_id'] ?? 0 );
         $rows = $wpdb->get_results( $wpdb->prepare(

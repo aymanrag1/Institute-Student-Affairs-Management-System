@@ -325,7 +325,7 @@ class Library_Orders {
     }
 
     static function handle_approve_wd_order(): void {
-        if ( ! current_user_can( 'rsyi_lib_approve_withdrawal' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
+        if ( ! current_user_can( 'rsyi_lib_approve_withdrawal' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
         global $wpdb;
         $id  = intval( $_POST['order_id'] ?? 0 );
@@ -343,7 +343,7 @@ class Library_Orders {
     }
 
     static function handle_reject_wd_order(): void {
-        if ( ! current_user_can( 'rsyi_lib_approve_withdrawal' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
+        if ( ! current_user_can( 'rsyi_lib_approve_withdrawal' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
         global $wpdb;
         $id = intval( $_POST['order_id'] ?? 0 );
@@ -564,7 +564,7 @@ class Library_Orders {
     }
 
     static function handle_approve_pr(): void {
-        if ( ! current_user_can( 'rsyi_lib_approve_purchase' ) ) { wp_send_json_error( [ 'message' => 'فقط العميد يعتمد طلبات الشراء / Only Dean can approve purchase requests' ] ); }
+        if ( ! current_user_can( 'rsyi_lib_approve_purchase' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'فقط العميد يعتمد طلبات الشراء / Only Dean can approve purchase requests' ] ); }
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
         global $wpdb;
         $id  = intval( $_POST['pr_id'] ?? 0 );
@@ -579,7 +579,7 @@ class Library_Orders {
     }
 
     static function handle_reject_pr(): void {
-        if ( ! current_user_can( 'rsyi_lib_approve_purchase' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
+        if ( ! current_user_can( 'rsyi_lib_approve_purchase' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
         global $wpdb;
         $id = intval( $_POST['pr_id'] ?? 0 );
@@ -755,14 +755,14 @@ class Library_Orders {
 
     private static function check_manage(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
-        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) ) {
+        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) && ! current_user_can( 'manage_options' ) ) {
             wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] );
         }
     }
 
     private static function check_view(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
-        if ( ! current_user_can( 'rsyi_lib_view_warehouse' ) ) {
+        if ( ! current_user_can( 'rsyi_lib_view_warehouse' ) && ! current_user_can( 'manage_options' ) ) {
             wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] );
         }
     }
