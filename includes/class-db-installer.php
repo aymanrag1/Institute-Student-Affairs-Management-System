@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.3.7';
+    const DB_VERSION        = '1.3.8';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -42,6 +42,7 @@ class DB_Installer {
         foreach ( self::get_table_sql( $charset ) as $sql ) {
             dbDelta( $sql );
         }
+        self::run_column_migrations();
     }
 
     /**
@@ -74,6 +75,15 @@ class DB_Installer {
                 'auto_graded'  => 'TINYINT(1) NOT NULL DEFAULT 0',
                 'regraded_by'  => 'BIGINT UNSIGNED DEFAULT NULL',
                 'regraded_at'  => 'DATETIME DEFAULT NULL',
+            ],
+            $p . 'rsyi_books' => [
+                'subject'       => 'VARCHAR(255) DEFAULT NULL',
+                'grade_level'   => 'VARCHAR(100) DEFAULT NULL',
+                'publisher'     => 'VARCHAR(255) DEFAULT NULL',
+                'unit'          => "VARCHAR(50) NOT NULL DEFAULT 'copy'",
+                'min_stock'     => 'INT UNSIGNED NOT NULL DEFAULT 0',
+                'price'         => 'DECIMAL(10,2) NOT NULL DEFAULT 0.00',
+                'current_stock' => 'INT NOT NULL DEFAULT 0',
             ],
         ];
 
@@ -553,7 +563,7 @@ class DB_Installer {
                 KEY idx_books_lang     (language)
             ) $charset;",
 
-            // ── Library Book Issues ───────────────────────────────────
+            // ── Library Book Issues (legacy simple) ──────────────────────
             "CREATE TABLE {$p}rsyi_book_issues (
                 id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 book_id      BIGINT UNSIGNED NOT NULL,
@@ -571,6 +581,179 @@ class DB_Installer {
                 KEY idx_issue_student (student_id),
                 KEY idx_issue_status  (status),
                 KEY idx_issue_due     (due_date)
+            ) $charset;",
+
+            // ── Library Suppliers ─────────────────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_suppliers (
+                id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                name       VARCHAR(255)    NOT NULL,
+                phone      VARCHAR(50)     DEFAULT NULL,
+                email      VARCHAR(150)    DEFAULT NULL,
+                address    TEXT            DEFAULT NULL,
+                notes      TEXT            DEFAULT NULL,
+                is_active  TINYINT(1)      NOT NULL DEFAULT 1,
+                created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id)
+            ) $charset;",
+
+            // ── Library Add Orders (Receiving) ────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_add_orders (
+                id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                order_number   VARCHAR(30)     NOT NULL,
+                supplier_id    BIGINT UNSIGNED DEFAULT NULL,
+                total_quantity INT UNSIGNED    NOT NULL DEFAULT 0,
+                total_value    DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
+                tax_enabled    TINYINT(1)      NOT NULL DEFAULT 0,
+                tax_rate       DECIMAL(5,2)    NOT NULL DEFAULT 0.00,
+                notes          TEXT            DEFAULT NULL,
+                from_pr_id     BIGINT UNSIGNED DEFAULT NULL,
+                created_by     BIGINT UNSIGNED NOT NULL,
+                created_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_add_order_num (order_number),
+                KEY idx_add_order_supplier  (supplier_id),
+                KEY idx_add_order_created   (created_at)
+            ) $charset;",
+
+            // ── Library Add Order Items ───────────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_add_order_items (
+                id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                order_id   BIGINT UNSIGNED NOT NULL,
+                book_id    BIGINT UNSIGNED NOT NULL,
+                quantity   INT UNSIGNED    NOT NULL DEFAULT 1,
+                unit_price DECIMAL(10,2)   NOT NULL DEFAULT 0.00,
+                PRIMARY KEY (id),
+                KEY idx_add_item_order (order_id),
+                KEY idx_add_item_book  (book_id)
+            ) $charset;",
+
+            // ── Library Withdrawal Orders ─────────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_withdrawal_orders (
+                id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                order_number VARCHAR(30)     NOT NULL,
+                order_type   VARCHAR(20)     NOT NULL DEFAULT 'normal',
+                cohort_id    BIGINT UNSIGNED DEFAULT NULL,
+                trainer_id   BIGINT UNSIGNED DEFAULT NULL,
+                status       VARCHAR(20)     NOT NULL DEFAULT 'draft',
+                notes        TEXT            DEFAULT NULL,
+                created_by   BIGINT UNSIGNED NOT NULL,
+                approved_by  BIGINT UNSIGNED DEFAULT NULL,
+                approved_at  DATETIME        DEFAULT NULL,
+                created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_wd_order_num (order_number),
+                KEY idx_wd_status   (status),
+                KEY idx_wd_cohort   (cohort_id),
+                KEY idx_wd_created  (created_at)
+            ) $charset;",
+
+            // ── Library Withdrawal Order Items ────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_withdrawal_order_items (
+                id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                order_id   BIGINT UNSIGNED NOT NULL,
+                book_id    BIGINT UNSIGNED NOT NULL,
+                quantity   INT UNSIGNED    NOT NULL DEFAULT 1,
+                unit_price DECIMAL(10,2)   NOT NULL DEFAULT 0.00,
+                PRIMARY KEY (id),
+                KEY idx_wd_item_order (order_id),
+                KEY idx_wd_item_book  (book_id)
+            ) $charset;",
+
+            // ── Library Return Orders ─────────────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_return_orders (
+                id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                order_number VARCHAR(30)     NOT NULL,
+                cohort_id    BIGINT UNSIGNED DEFAULT NULL,
+                trainer_id   BIGINT UNSIGNED DEFAULT NULL,
+                status       VARCHAR(20)     NOT NULL DEFAULT 'pending',
+                notes        TEXT            DEFAULT NULL,
+                created_by   BIGINT UNSIGNED NOT NULL,
+                created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_ret_order_num (order_number),
+                KEY idx_ret_status  (status),
+                KEY idx_ret_created (created_at)
+            ) $charset;",
+
+            // ── Library Return Order Items ────────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_return_order_items (
+                id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                order_id    BIGINT UNSIGNED NOT NULL,
+                book_id     BIGINT UNSIGNED NOT NULL,
+                quantity    INT UNSIGNED    NOT NULL DEFAULT 1,
+                condition_v VARCHAR(20)     NOT NULL DEFAULT 'good',
+                PRIMARY KEY (id),
+                KEY idx_ret_item_order (order_id),
+                KEY idx_ret_item_book  (book_id)
+            ) $charset;",
+
+            // ── Library Purchase Requests ─────────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_purchase_requests (
+                id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                request_number VARCHAR(30)     NOT NULL,
+                status         VARCHAR(20)     NOT NULL DEFAULT 'pending',
+                notes          TEXT            DEFAULT NULL,
+                requested_by   BIGINT UNSIGNED NOT NULL,
+                approved_by    BIGINT UNSIGNED DEFAULT NULL,
+                approved_at    DATETIME        DEFAULT NULL,
+                created_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_pr_num    (request_number),
+                KEY idx_pr_status       (status),
+                KEY idx_pr_created      (created_at)
+            ) $charset;",
+
+            // ── Library Purchase Request Items ────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_purchase_request_items (
+                id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                request_id BIGINT UNSIGNED NOT NULL,
+                book_id    BIGINT UNSIGNED NOT NULL,
+                quantity   INT UNSIGNED    NOT NULL DEFAULT 1,
+                notes      TEXT            DEFAULT NULL,
+                PRIMARY KEY (id),
+                KEY idx_pr_item_req  (request_id),
+                KEY idx_pr_item_book (book_id)
+            ) $charset;",
+
+            // ── Library Opening Balances ──────────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_opening_balances (
+                id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                book_id    BIGINT UNSIGNED NOT NULL,
+                quantity   INT UNSIGNED    NOT NULL DEFAULT 0,
+                unit_price DECIMAL(10,2)   NOT NULL DEFAULT 0.00,
+                notes      TEXT            DEFAULT NULL,
+                created_by BIGINT UNSIGNED NOT NULL,
+                created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_opening_book (book_id)
+            ) $charset;",
+
+            // ── Library Transactions (FIFO) ───────────────────────────────
+            "CREATE TABLE {$p}rsyi_lib_transactions (
+                id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                transaction_type VARCHAR(20)     NOT NULL DEFAULT 'add',
+                add_order_id     BIGINT UNSIGNED DEFAULT NULL,
+                withdrawal_id    BIGINT UNSIGNED DEFAULT NULL,
+                return_id        BIGINT UNSIGNED DEFAULT NULL,
+                opening_id       BIGINT UNSIGNED DEFAULT NULL,
+                book_id          BIGINT UNSIGNED NOT NULL,
+                quantity         INT             NOT NULL DEFAULT 0,
+                unit_price       DECIMAL(10,2)   NOT NULL DEFAULT 0.00,
+                remaining_qty    INT             NOT NULL DEFAULT 0,
+                notes            TEXT            DEFAULT NULL,
+                created_by       BIGINT UNSIGNED NOT NULL,
+                created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_txn_book     (book_id),
+                KEY idx_txn_type     (transaction_type),
+                KEY idx_txn_add_ord  (add_order_id),
+                KEY idx_txn_wd_ord   (withdrawal_id),
+                KEY idx_txn_created  (created_at)
             ) $charset;",
         ];
     }

@@ -72,6 +72,11 @@ class Roles {
             // Library
             'rsyi_manage_library'            => true,
             'rsyi_view_library'              => true,
+            // Warehouse
+            'rsyi_lib_view_warehouse'        => true,
+            'rsyi_lib_manage_warehouse'      => true,
+            'rsyi_lib_approve_withdrawal'    => true,
+            'rsyi_lib_approve_purchase'      => true,
         ];
     }
 
@@ -178,6 +183,9 @@ class Roles {
                     'rsyi_view_evaluations'            => true,
                     'rsyi_manage_evaluation_periods'   => true,
                     'rsyi_submit_admin_evaluation'     => true,
+                    // Warehouse
+                    'rsyi_lib_view_warehouse'          => true,
+                    'rsyi_lib_manage_warehouse'        => true,
                 ],
             ],
 
@@ -227,6 +235,9 @@ class Roles {
                     // Library management
                     'rsyi_manage_library'          => true,
                     'rsyi_view_library'            => true,
+                    // Warehouse
+                    'rsyi_lib_view_warehouse'      => true,
+                    'rsyi_lib_approve_withdrawal'  => true,
                 ],
             ],
 
@@ -242,6 +253,8 @@ class Roles {
                     'rsyi_view_exam_stats'         => true,
                     'rsyi_export_exam_results'     => true,
                     'rsyi_view_library'            => true,
+                    // Warehouse
+                    'rsyi_lib_view_warehouse'      => true,
                 ],
             ],
 
@@ -257,6 +270,8 @@ class Roles {
                     'rsyi_view_exam_stats'         => true,
                     'rsyi_export_exam_results'     => true,
                     'rsyi_view_library'            => true,
+                    // Warehouse
+                    'rsyi_lib_view_warehouse'      => true,
                 ],
             ],
 
