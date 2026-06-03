@@ -18,7 +18,7 @@ if ( ! function_exists( 'rsyi_lib_t' ) ) {
 $_dir = $_lib_en ? 'ltr' : 'rtl';
 ?>
 <div class="wrap rsyi-lib-wrap" id="rsyi-library-page" dir="<?= $_dir ?>">
-<h1 class="wp-heading-inline">📦 <?= rsyi_lib_t('مخزن الكتب', 'Book Warehouse') ?></h1>
+<h1 class="wp-heading-inline">📚 <?= rsyi_lib_t('متجر الكتب', 'Book Store') ?></h1>
 <hr class="wp-header-end">
 
 <nav class="nav-tab-wrapper rsyi-tabs" style="margin-bottom:0;">
