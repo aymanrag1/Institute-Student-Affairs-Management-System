@@ -19,7 +19,7 @@ class Library_Orders {
             // Suppliers
             'rsyi_lib_save_supplier','rsyi_lib_delete_supplier','rsyi_lib_get_suppliers',
             // Add orders (receiving)
-            'rsyi_lib_get_add_orders','rsyi_lib_save_add_order','rsyi_lib_delete_add_order','rsyi_lib_get_add_order',
+            'rsyi_lib_get_add_orders','rsyi_lib_save_add_order','rsyi_lib_delete_add_order','rsyi_lib_get_add_order','rsyi_lib_auto_pr',
             // Withdrawal orders
             'rsyi_lib_get_wd_orders','rsyi_lib_save_wd_order','rsyi_lib_submit_wd_order',
             'rsyi_lib_approve_wd_order','rsyi_lib_reject_wd_order','rsyi_lib_complete_wd_order',
@@ -127,13 +127,15 @@ class Library_Orders {
     static function handle_save_add_order(): void {
         self::check_manage();
         global $wpdb;
-        $uid         = get_current_user_id();
-        $id          = intval( $_POST['order_id'] ?? 0 );
-        $supplier_id = intval( $_POST['supplier_id'] ?? 0 );
-        $tax_enabled = intval( $_POST['tax_enabled'] ?? 0 );
-        $tax_rate    = (float) ( $_POST['tax_rate'] ?? 0 );
-        $notes       = sanitize_textarea_field( $_POST['notes'] ?? '' );
-        $items_raw   = json_decode( stripslashes( $_POST['items'] ?? '[]' ), true );
+        $uid           = get_current_user_id();
+        $id            = intval( $_POST['order_id'] ?? 0 );
+        $supplier_id   = intval( $_POST['supplier_id'] ?? 0 );
+        $tax_enabled   = intval( $_POST['tax_enabled'] ?? 0 );
+        $tax_rate      = (float) ( $_POST['tax_rate'] ?? 0 );
+        $discount_rate = (float) ( $_POST['discount_rate'] ?? 0 );
+        $quote_number  = sanitize_text_field( $_POST['quote_number'] ?? '' );
+        $notes         = sanitize_textarea_field( $_POST['notes'] ?? '' );
+        $items_raw     = json_decode( stripslashes( $_POST['items'] ?? '[]' ), true );
 
         if ( empty( $items_raw ) ) { wp_send_json_error( [ 'message' => 'أضف كتاباً واحداً على الأقل / Add at least one book' ] ); }
 
@@ -148,7 +150,9 @@ class Library_Orders {
             $total_qty += $qty;
             $total_val += $qty * $price;
         }
+        if ( $discount_rate > 0 ) { $total_val *= ( 1 - $discount_rate / 100 ); }
         if ( $tax_enabled && $tax_rate > 0 ) { $total_val *= ( 1 + $tax_rate / 100 ); }
+        $is_new = ( $id === 0 );
 
         if ( $id > 0 ) {
             // Update — reverse old transactions first
@@ -160,6 +164,8 @@ class Library_Orders {
                 'total_value'    => $total_val,
                 'tax_enabled'    => $tax_enabled,
                 'tax_rate'       => $tax_rate,
+                'discount_rate'  => $discount_rate,
+                'quote_number'   => $quote_number ?: null,
                 'notes'          => $notes,
                 'updated_at'     => current_time( 'mysql' ),
             ], [ 'id' => $id ] );
@@ -172,6 +178,8 @@ class Library_Orders {
                 'total_value'    => $total_val,
                 'tax_enabled'    => $tax_enabled,
                 'tax_rate'       => $tax_rate,
+                'discount_rate'  => $discount_rate,
+                'quote_number'   => $quote_number ?: null,
                 'notes'          => $notes,
                 'created_by'     => $uid,
                 'created_at'     => current_time( 'mysql' ),
@@ -183,6 +191,7 @@ class Library_Orders {
             $wpdb->insert( $wpdb->prefix . 'rsyi_lib_add_order_items', array_merge( $item, [ 'order_id' => $id ] ) );
             Library_Transactions::record_add( $item['book_id'], $item['quantity'], $item['unit_price'], $id, $uid );
         }
+        \RSYI_SA\Audit_Log::log( 'add_order', $id, $is_new ? 'create' : 'update', [ 'order_id' => $id, 'total_qty' => $total_qty ] );
         wp_send_json_success( [ 'message' => 'تم الحفظ / Saved', 'id' => $id ] );
     }
 
@@ -229,9 +238,12 @@ class Library_Orders {
         ) );
         if ( ! $order ) { wp_send_json_error( [ 'message' => 'Not found' ] ); }
         $items = $wpdb->get_results( $wpdb->prepare(
-            "SELECT i.*, b.title_ar, b.title_en, b.current_stock
+            "SELECT i.*, b.title_ar, b.title_en, b.current_stock,
+                    p.student_name_ar AS student_name, p.student_id_number
              FROM {$wpdb->prefix}rsyi_lib_withdrawal_order_items i
-             LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id WHERE i.order_id=%d", $id
+             LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id
+             LEFT JOIN {$wpdb->prefix}rsyi_student_profiles p ON p.id=i.student_id
+             WHERE i.order_id=%d", $id
         ) );
         $order->items = $items ?: [];
         // Add real_stock per item
@@ -259,7 +271,8 @@ class Library_Orders {
         foreach ( $items_raw as $row ) {
             $bid = intval( $row['book_id'] ?? 0 );
             $qty = max( 1, intval( $row['quantity'] ?? 1 ) );
-            if ( $bid ) { $items[] = [ 'book_id' => $bid, 'quantity' => $qty ]; }
+            $sid = intval( $row['student_id'] ?? 0 );
+            if ( $bid ) { $items[] = [ 'book_id' => $bid, 'quantity' => $qty, 'student_id' => $sid ?: null ]; }
         }
 
         if ( $id > 0 ) {
@@ -292,6 +305,7 @@ class Library_Orders {
         foreach ( $items as $item ) {
             $wpdb->insert( $wpdb->prefix . 'rsyi_lib_withdrawal_order_items', array_merge( $item, [ 'order_id' => $id ] ) );
         }
+        \RSYI_SA\Audit_Log::log( 'withdrawal_order', $id, 'save_draft', [ 'order_id' => $id ] );
         wp_send_json_success( [ 'message' => 'تم حفظ المسودة / Draft saved', 'id' => $id ] );
     }
 
@@ -321,6 +335,7 @@ class Library_Orders {
 
         // Send email notification
         self::notify_withdrawal_created( $order );
+        \RSYI_SA\Audit_Log::log( 'withdrawal_order', $id, 'submit', [ 'order_id' => $id ] );
         wp_send_json_success( [ 'message' => 'تم تقديم الإذن / Order submitted for approval' ] );
     }
 
@@ -339,6 +354,7 @@ class Library_Orders {
             'approved_at' => current_time( 'mysql' ),
             'updated_at'  => current_time( 'mysql' ),
         ], [ 'id' => $id ] );
+        \RSYI_SA\Audit_Log::log( 'withdrawal_order', $id, 'approve', [ 'order_id' => $id ] );
         wp_send_json_success( [ 'message' => 'تم الاعتماد / Approved' ] );
     }
 
@@ -752,6 +768,53 @@ class Library_Orders {
     // ═══════════════════════════════════════════════════════════════════════════
     // HELPERS
     // ═══════════════════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUTO-GENERATE PURCHASE REQUEST
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    static function handle_auto_pr(): void {
+        self::check_manage();
+        global $wpdb;
+        $books = $wpdb->get_results(
+            "SELECT id, title_ar, current_stock, max_stock
+             FROM {$wpdb->prefix}rsyi_books
+             WHERE is_active=1 AND max_stock > 0 AND current_stock < max_stock
+             ORDER BY title_ar"
+        );
+        if ( empty( $books ) ) {
+            wp_send_json_error( [ 'message' => 'لا توجد عناصر تحتاج لشراء / No items need purchasing' ] );
+        }
+        $items = [];
+        foreach ( $books as $b ) {
+            $qty = (int) $b->max_stock - (int) $b->current_stock;
+            if ( $qty > 0 ) {
+                $items[] = [ 'book_id' => (int) $b->id, 'quantity' => $qty, 'notes' => '' ];
+            }
+        }
+        if ( empty( $items ) ) {
+            wp_send_json_error( [ 'message' => 'لا توجد عناصر تحتاج لشراء / No items need purchasing' ] );
+        }
+        $uid     = get_current_user_id();
+        $req_num = Library_Transactions::generate_order_number( 'PR' );
+        $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_requests', [
+            'request_number' => $req_num,
+            'status'         => 'pending',
+            'notes'          => 'Auto-generated / توليد تلقائي',
+            'requested_by'   => $uid,
+            'created_at'     => current_time( 'mysql' ),
+        ] );
+        $id = $wpdb->insert_id;
+        foreach ( $items as $item ) {
+            $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_request_items', array_merge( $item, [ 'request_id' => $id ] ) );
+        }
+        \RSYI_SA\Audit_Log::log( 'purchase_request', $id, 'auto_create', [ 'items_count' => count( $items ) ] );
+        wp_send_json_success( [
+            'message' => sprintf( 'تم إنشاء طلب شراء بـ %d عنصر / Created PR with %d items', count( $items ), count( $items ) ),
+            'id'      => $id,
+            'count'   => count( $items ),
+        ] );
+    }
 
     private static function check_manage(): void {
         check_ajax_referer( 'rsyi_sa_admin', 'nonce' );

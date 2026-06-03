@@ -77,13 +77,22 @@ class DB_Installer {
                 'regraded_at'  => 'DATETIME DEFAULT NULL',
             ],
             $p . 'rsyi_books' => [
-                'subject'       => 'VARCHAR(255) DEFAULT NULL',
-                'grade_level'   => 'VARCHAR(100) DEFAULT NULL',
-                'publisher'     => 'VARCHAR(255) DEFAULT NULL',
-                'unit'          => "VARCHAR(50) NOT NULL DEFAULT 'copy'",
-                'min_stock'     => 'INT UNSIGNED NOT NULL DEFAULT 0',
-                'price'         => 'DECIMAL(10,2) NOT NULL DEFAULT 0.00',
-                'current_stock' => 'INT NOT NULL DEFAULT 0',
+                'subject'          => 'VARCHAR(255) DEFAULT NULL',
+                'grade_level'      => 'VARCHAR(100) DEFAULT NULL',
+                'publisher'        => 'VARCHAR(255) DEFAULT NULL',
+                'unit'             => "VARCHAR(50) NOT NULL DEFAULT 'copy'",
+                'min_stock'        => 'INT UNSIGNED NOT NULL DEFAULT 0',
+                'price'            => 'DECIMAL(10,2) NOT NULL DEFAULT 0.00',
+                'current_stock'    => 'INT NOT NULL DEFAULT 0',
+                'target_audience'  => "VARCHAR(50) NOT NULL DEFAULT 'trainers'",
+                'max_stock'        => 'INT UNSIGNED NOT NULL DEFAULT 0',
+            ],
+            $p . 'rsyi_lib_add_orders' => [
+                'discount_rate' => 'DECIMAL(5,2) NOT NULL DEFAULT 0.00',
+                'quote_number'  => 'VARCHAR(100) DEFAULT NULL',
+            ],
+            $p . 'rsyi_lib_withdrawal_order_items' => [
+                'student_id' => 'BIGINT UNSIGNED DEFAULT NULL',
             ],
         ];
 

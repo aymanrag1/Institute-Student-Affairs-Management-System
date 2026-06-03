@@ -63,19 +63,22 @@ class Library {
             'subject'        => sanitize_text_field( $_POST['subject'] ?? '' ),
             'grade_level'    => sanitize_text_field( $_POST['grade_level'] ?? '' ),
             'publisher'      => sanitize_text_field( $_POST['publisher'] ?? '' ),
-            'unit'           => sanitize_text_field( $_POST['unit'] ?? 'copy' ),
-            'category'       => sanitize_key( $_POST['category'] ?? 'general' ),
+            'unit'            => sanitize_text_field( $_POST['unit'] ?? 'copy' ),
+            'target_audience' => sanitize_key( $_POST['target_audience'] ?? 'trainers' ),
+            'category'        => sanitize_key( $_POST['category'] ?? 'general' ),
             'language'       => sanitize_text_field( $_POST['book_language'] ?? 'en' ),
             'isbn'           => sanitize_text_field( $_POST['isbn'] ?? '' ),
             'description'    => sanitize_textarea_field( $_POST['description'] ?? '' ),
             'cover_image_id' => intval( $_POST['cover_image_id'] ?? 0 ),
             'min_stock'      => max( 0, intval( $_POST['min_stock'] ?? 0 ) ),
+            'max_stock'      => max( 0, intval( $_POST['max_stock'] ?? 0 ) ),
             'price'          => (float) ( $_POST['price'] ?? 0 ),
             'is_active'      => 1,
             'updated_at'     => current_time( 'mysql' ),
         ];
         if ( $id > 0 ) {
             $wpdb->update( $table, $data, [ 'id' => $id ] );
+            \RSYI_SA\Audit_Log::log( 'book', $id, 'update', [ 'title' => $data['title_en'] ] );
             wp_send_json_success( [ 'message' => 'تم التحديث / Updated', 'id' => $id ] );
         } else {
             $data['total_copies']     = 0;
@@ -84,7 +87,9 @@ class Library {
             $data['added_by']         = get_current_user_id();
             $data['created_at']       = current_time( 'mysql' );
             $wpdb->insert( $table, $data );
-            wp_send_json_success( [ 'message' => 'تمت الإضافة / Added', 'id' => $wpdb->insert_id ] );
+            $new_id = $wpdb->insert_id;
+            \RSYI_SA\Audit_Log::log( 'book', $new_id, 'create', [ 'title' => $data['title_en'] ] );
+            wp_send_json_success( [ 'message' => 'تمت الإضافة / Added', 'id' => $new_id ] );
         }
     }
 
@@ -102,6 +107,7 @@ class Library {
         ) );
         if ( $has_active ) { wp_send_json_error( [ 'message' => 'الكتاب في إذن نشط / Book in active order' ] ); }
         $wpdb->update( $wpdb->prefix . 'rsyi_books', [ 'is_active' => 0 ], [ 'id' => $id ] );
+        \RSYI_SA\Audit_Log::log( 'book', $id, 'delete', [] );
         wp_send_json_success( [ 'message' => 'تم الحذف / Deleted' ] );
     }
 
