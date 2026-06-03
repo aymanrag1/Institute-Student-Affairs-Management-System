@@ -23,7 +23,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 
 <nav class="nav-tab-wrapper rsyi-tabs" style="margin-bottom:0;">
     <a href="#" class="nav-tab nav-tab-active" data-tab="dashboard">🏠 <?= rsyi_lib_t('الرئيسية', 'Dashboard') ?></a>
-    <a href="#" class="nav-tab" data-tab="books">📚 <?= rsyi_lib_t('الكتب', 'Books') ?></a>
+    <a href="#" class="nav-tab" data-tab="books">📚 <?= rsyi_lib_t('العناصر', 'Items') ?></a>
     <a href="#" class="nav-tab" data-tab="suppliers">🏭 <?= rsyi_lib_t('الموردون', 'Suppliers') ?></a>
     <a href="#" class="nav-tab" data-tab="add-orders">📥 <?= rsyi_lib_t('إذن الاستلام', 'Receiving Order') ?></a>
     <a href="#" class="nav-tab" data-tab="wd-orders">📤 <?= rsyi_lib_t('إذن الصرف', 'Withdrawal Order') ?></a>
@@ -44,7 +44,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 <div id="tab-books" class="rsyi-tab-pane" style="display:none;">
     <div class="rsyi-toolbar">
         <?php if($lib_can_manage): ?>
-        <button class="button button-primary" id="btn-add-book">+ <?= rsyi_lib_t('إضافة كتاب', 'Add Book') ?></button>
+        <button class="button button-primary" id="btn-add-book">+ <?= rsyi_lib_t('إضافة عنصر', 'Add Item') ?></button>
         <?php endif; ?>
         <select id="filter-cat"><option value=""><?= rsyi_lib_t('كل التصنيفات', 'All Categories') ?></option>
             <option value="curriculum"><?= rsyi_lib_t('مناهج أجنبية', 'Foreign Curriculum') ?></option><option value="certificate"><?= rsyi_lib_t('شهادات', 'Certificates') ?></option><option value="general"><?= rsyi_lib_t('عام', 'General') ?></option>
@@ -179,15 +179,14 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 <!-- Book Modal -->
 <div id="book-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
 <div class="rsyi-modal-box" style="max-width:750px;">
-    <h2 id="bm-title" style="margin-top:0;"><?= rsyi_lib_t('إضافة كتاب', 'Add Book') ?></h2>
+    <h2 id="bm-title" style="margin-top:0;"><?= rsyi_lib_t('إضافة عنصر', 'Add Item') ?></h2>
     <input type="hidden" id="bm-id" value="0">
     <table class="form-table">
-        <tr><th><?= rsyi_lib_t('العنوان بالعربية', 'Arabic Title') ?> *</th><td><input type="text" id="bm-title-ar" class="regular-text"></td>
-            <th><?= rsyi_lib_t('العنوان بالإنجليزية', 'Title in English') ?> *</th><td><input type="text" id="bm-title-en" class="regular-text"></td></tr>
+        <tr><th><?= rsyi_lib_t('العنوان', 'Title') ?> *</th><td colspan="3"><input type="text" id="bm-title-en" class="large-text"><input type="hidden" id="bm-title-ar"></td></tr>
         <tr><th><?= rsyi_lib_t('المؤلف', 'Author') ?></th><td><input type="text" id="bm-author" class="regular-text"></td>
             <th><?= rsyi_lib_t('الناشر', 'Publisher') ?></th><td><input type="text" id="bm-publisher" class="regular-text"></td></tr>
         <tr><th><?= rsyi_lib_t('المادة', 'Subject') ?></th><td><input type="text" id="bm-subject" class="regular-text"></td>
-            <th><?= rsyi_lib_t('المستوى', 'Grade') ?></th><td><input type="text" id="bm-grade" class="regular-text"></td></tr>
+            <th><?= rsyi_lib_t('المجموعة', 'Cohort') ?></th><td><input type="text" id="bm-grade" class="regular-text"></td></tr>
         <tr><th><?= rsyi_lib_t('التصنيف', 'Category') ?></th><td>
                 <select id="bm-cat"><option value="curriculum"><?= rsyi_lib_t('مناهج أجنبية', 'Foreign Curriculum') ?></option><option value="certificate"><?= rsyi_lib_t('شهادات', 'Certificates') ?></option><option value="general"><?= rsyi_lib_t('عام', 'General') ?></option></select>
             </td>
@@ -370,7 +369,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     var canApproveWd=<?php echo $lib_can_approve_wd?'true':'false'; ?>;
     var canApprovePr=<?php echo $lib_can_approve_pr?'true':'false'; ?>;
     var L=<?php echo json_encode([
-        'no_books'           => rsyi_lib_t('لا توجد كتب','No books found'),
+        'no_books'           => rsyi_lib_t('لا توجد عناصر','No items found'),
         'no_suppliers'       => rsyi_lib_t('لا يوجد موردون','No suppliers'),
         'no_orders'          => rsyi_lib_t('لا توجد أذون','No orders'),
         'no_requests'        => rsyi_lib_t('لا توجد طلبات','No requests'),
@@ -394,8 +393,8 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         'complete_wd'        => rsyi_lib_t('إكمال الصرف','Complete Withdrawal'),
         'complete_ret'       => rsyi_lib_t('إتمام الرد','Complete Return'),
         'convert_pr'         => rsyi_lib_t('تحويل لإذن استلام','Convert to Receiving Order'),
-        'add_book_title'     => rsyi_lib_t('إضافة كتاب','Add Book'),
-        'edit_book_title'    => rsyi_lib_t('تعديل كتاب','Edit Book'),
+        'add_book_title'     => rsyi_lib_t('إضافة عنصر','Add Item'),
+        'edit_book_title'    => rsyi_lib_t('تعديل عنصر','Edit Item'),
         'new_ao_title'       => rsyi_lib_t('إذن استلام جديد','New Receiving Order'),
         'edit_ao_title'      => rsyi_lib_t('تعديل إذن الاستلام','Edit Receiving Order'),
         'new_wd_title'       => rsyi_lib_t('إذن صرف جديد','New Withdrawal Order'),
@@ -416,7 +415,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         'status_approved'    => rsyi_lib_t('معتمد','Approved'),
         'status_completed'   => rsyi_lib_t('مكتمل','Completed'),
         'status_rejected'    => rsyi_lib_t('مرفوض','Rejected'),
-        'confirm_del_book'   => rsyi_lib_t('حذف الكتاب؟','Delete this book?'),
+        'confirm_del_book'   => rsyi_lib_t('حذف العنصر؟','Delete this item?'),
         'confirm_del_sup'    => rsyi_lib_t('حذف المورد؟','Delete this supplier?'),
         'confirm_del_ao'     => rsyi_lib_t('حذف إذن الاستلام وعكس جميع الحركات؟','Delete receiving order and reverse all transactions?'),
         'confirm_submit_wd'  => rsyi_lib_t('تقديم الإذن للاعتماد؟','Submit order for approval?'),
@@ -586,7 +585,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         post('rsyi_get_books',{category:$('#filter-cat').val(),search:$('#filter-search').val()},function(r){
             if(!r.success){ return; }
             var html='';
-            if(!r.data.length) html='<tr><td colspan="8" style="text-align:center"><?= rsyi_lib_t('لا توجد كتب', 'No books found') ?></td></tr>';
+            if(!r.data.length) html='<tr><td colspan="8" style="text-align:center"><?= rsyi_lib_t('لا توجد عناصر', 'No items found') ?></td></tr>';
             r.data.forEach(function(b){
                 var cover=b.cover_url?'<img src="'+b.cover_url+'" style="width:44px;height:56px;object-fit:cover;border-radius:3px;">':'—';
                 var sc=(b.current_stock===0)?'style="color:red;"':(b.current_stock<=b.min_stock&&b.min_stock>0?'style="color:orange;"':'');
@@ -603,16 +602,16 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     $('#btn-search-books,#filter-cat').on('click change',loadBooks);
 
     $('#btn-add-book').on('click',function(){
-        $('#bm-title').text('<?= rsyi_lib_t('إضافة كتاب', 'Add Book') ?>');$('#bm-id').val(0);
-        $('#bm-title-ar,#bm-title-en,#bm-author,#bm-publisher,#bm-subject,#bm-grade,#bm-isbn,#bm-desc').val('');
+        $('#bm-title').text('<?= rsyi_lib_t('إضافة عنصر', 'Add Item') ?>');$('#bm-id').val(0);
+        $('#bm-title-en,#bm-author,#bm-publisher,#bm-subject,#bm-grade,#bm-isbn,#bm-desc').val('');
         $('#bm-min-stock,#bm-price').val(0);$('#bm-cat').val('curriculum');$('#bm-lang').val('en');$('#bm-unit').val('copy');
         $('#bm-cover-id').val(0);$('#bm-cover-preview').html('');$('#btn-bm-cover-clear').hide();$('#bm-msg').hide();
         openModal('book-modal');
     });
     $(document).on('click','.btn-edit-book',function(){
         var b=$(this).data('b');
-        $('#bm-title').text('<?= rsyi_lib_t('تعديل كتاب', 'Edit Book') ?>');$('#bm-id').val(b.id);
-        $('#bm-title-ar').val(b.title_ar);$('#bm-title-en').val(b.title_en);$('#bm-author').val(b.author||'');
+        $('#bm-title').text('<?= rsyi_lib_t('تعديل عنصر', 'Edit Item') ?>');$('#bm-id').val(b.id);
+        $('#bm-title-en').val(b.title_en||b.title_ar);$('#bm-author').val(b.author||'');
         $('#bm-publisher').val(b.publisher||'');$('#bm-subject').val(b.subject||'');$('#bm-grade').val(b.grade_level||'');
         $('#bm-isbn').val(b.isbn||'');$('#bm-desc').val(b.description||'');$('#bm-min-stock').val(b.min_stock||0);
         $('#bm-price').val(b.price||0);$('#bm-cat').val(b.category||'general');$('#bm-lang').val(b.language||'en');
@@ -622,16 +621,17 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         $('#bm-msg').hide(); openModal('book-modal');
     });
     $(document).on('click','.btn-del-book',function(){
-        if(!confirm('<?= rsyi_lib_t('حذف الكتاب؟', 'Delete this book?') ?>')) return;
+        if(!confirm('<?= rsyi_lib_t('حذف العنصر؟', 'Delete this item?') ?>')) return;
         post('rsyi_delete_book',{book_id:$(this).data('id')},function(r){ alert(r.data.message); if(r.success) loadBooks(); });
     });
     $('#btn-save-book').on('click',function(){
-        var data={book_id:$('#bm-id').val(),title_ar:$('#bm-title-ar').val().trim(),title_en:$('#bm-title-en').val().trim(),
+        var titleEn=$('#bm-title-en').val().trim();
+        var data={book_id:$('#bm-id').val(),title_ar:titleEn,title_en:titleEn,
             author:$('#bm-author').val(),publisher:$('#bm-publisher').val(),subject:$('#bm-subject').val(),
             grade_level:$('#bm-grade').val(),isbn:$('#bm-isbn').val(),description:$('#bm-desc').val(),
             min_stock:$('#bm-min-stock').val(),price:$('#bm-price').val(),
             category:$('#bm-cat').val(),book_language:$('#bm-lang').val(),unit:$('#bm-unit').val(),cover_image_id:$('#bm-cover-id').val()};
-        if(!data.title_ar||!data.title_en){alert('<?= rsyi_lib_t('العنوان مطلوب', 'Title is required') ?>');return;}
+        if(!titleEn){alert('<?= rsyi_lib_t('العنوان مطلوب', 'Title is required') ?>');return;}
         post('rsyi_save_book',data,function(r){ msg('#bm-msg',r.data.message,r.success); if(r.success){setTimeout(function(){$('#book-modal').hide();loadBooks();loadBooksCache();},700);} });
     });
     var bmUploader;
