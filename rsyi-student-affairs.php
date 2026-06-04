@@ -116,6 +116,11 @@ function rsyi_sa_init(): void {
     // in addition to the direct call inside sync_roles() / add_roles().
     RSYI_SA\Roles::register_hr_extend_hook();
 
+    // ── Always ensure 'read' cap on all RSYI admin roles ─────────────────────
+    // Runs on every load (cheap check). Fixes existing roles missing 'read'
+    // without waiting for a version-triggered sync_roles() cycle.
+    RSYI_SA\Roles::ensure_read_cap();
+
     // ── Permanent role sync ───────────────────────────────────────────────────
     // On every load, if the stored roles-version is behind the current plugin
     // version, sync new roles / caps without requiring a full deactivation cycle.

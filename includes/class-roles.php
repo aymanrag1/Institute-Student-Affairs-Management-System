@@ -336,6 +336,28 @@ class Roles {
     }
 
     /**
+     * Ensure the 'read' capability exists on all RSYI admin roles.
+     * Runs on every plugins_loaded (cheap: just checks WP_Role objects in memory).
+     * Fixes installations where the role was created before 'read' was added to the definition.
+     */
+    public static function ensure_read_cap(): void {
+        $admin_roles = [
+            'rsyi_student_affairs_mgr',
+            'rsyi_student_supervisor',
+            'rsyi_dorm_supervisor',
+            'rsyi_senior_naval_trainer',
+            'rsyi_naval_trainer',
+            'rsyi_preparatory_lecturer',
+        ];
+        foreach ( $admin_roles as $slug ) {
+            $role = get_role( $slug );
+            if ( $role && empty( $role->capabilities['read'] ) ) {
+                $role->add_cap( 'read', true );
+            }
+        }
+    }
+
+    /**
      * Sync roles without full deactivation/activation cycle.
      * Called on plugins_loaded whenever the stored role-version differs from the current one.
      * Adds missing capabilities and registers new roles; never removes existing custom data.
