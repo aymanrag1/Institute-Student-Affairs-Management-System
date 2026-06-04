@@ -127,44 +127,43 @@ class Library_Orders {
     static function handle_save_add_order(): void {
         self::check_manage();
         global $wpdb;
-        $uid           = get_current_user_id();
-        $id            = intval( $_POST['order_id'] ?? 0 );
-        $supplier_id   = intval( $_POST['supplier_id'] ?? 0 );
-        $tax_enabled   = intval( $_POST['tax_enabled'] ?? 0 );
-        $tax_rate      = (float) ( $_POST['tax_rate'] ?? 0 );
-        $discount_rate = (float) ( $_POST['discount_rate'] ?? 0 );
-        $quote_number  = sanitize_text_field( $_POST['quote_number'] ?? '' );
-        $notes         = sanitize_textarea_field( $_POST['notes'] ?? '' );
-        $items_raw     = json_decode( stripslashes( $_POST['items'] ?? '[]' ), true );
+        $uid          = get_current_user_id();
+        $id           = intval( $_POST['order_id'] ?? 0 );
+        $supplier_id  = intval( $_POST['supplier_id'] ?? 0 );
+        $quote_number = sanitize_text_field( $_POST['quote_number'] ?? '' );
+        $notes        = sanitize_textarea_field( $_POST['notes'] ?? '' );
+        $items_raw    = json_decode( stripslashes( $_POST['items'] ?? '[]' ), true );
 
         if ( empty( $items_raw ) ) { wp_send_json_error( [ 'message' => 'أضف كتاباً واحداً على الأقل / Add at least one book' ] ); }
 
         $total_qty = 0; $total_val = 0;
         $items = [];
         foreach ( $items_raw as $row ) {
-            $qty   = max( 1, intval( $row['quantity'] ?? 1 ) );
-            $price = (float) ( $row['unit_price'] ?? 0 );
-            $bid   = intval( $row['book_id'] ?? 0 );
+            $bid  = intval( $row['book_id'] ?? 0 );
+            $qty  = max( 1, intval( $row['quantity'] ?? 1 ) );
+            $price= (float) ( $row['unit_price'] ?? 0 );
+            $tax  = max( 0.0, (float) ( $row['tax_rate'] ?? 0 ) );
+            $disc = max( 0.0, (float) ( $row['discount_rate'] ?? 0 ) );
             if ( ! $bid ) continue;
-            $items[] = [ 'book_id' => $bid, 'quantity' => $qty, 'unit_price' => $price ];
+            $line = $qty * $price;
+            if ( $disc > 0 ) { $line *= ( 1 - $disc / 100 ); }
+            if ( $tax  > 0 ) { $line *= ( 1 + $tax  / 100 ); }
+            $items[]    = [ 'book_id' => $bid, 'quantity' => $qty, 'unit_price' => $price, 'tax_rate' => $tax, 'discount_rate' => $disc ];
             $total_qty += $qty;
-            $total_val += $qty * $price;
+            $total_val += $line;
         }
-        if ( $discount_rate > 0 ) { $total_val *= ( 1 - $discount_rate / 100 ); }
-        if ( $tax_enabled && $tax_rate > 0 ) { $total_val *= ( 1 + $tax_rate / 100 ); }
         $is_new = ( $id === 0 );
 
         if ( $id > 0 ) {
-            // Update — reverse old transactions first
             Library_Transactions::reverse_add_order( $id, $uid );
             $wpdb->delete( $wpdb->prefix . 'rsyi_lib_add_order_items', [ 'order_id' => $id ] );
             $wpdb->update( $wpdb->prefix . 'rsyi_lib_add_orders', [
                 'supplier_id'    => $supplier_id,
                 'total_quantity' => $total_qty,
                 'total_value'    => $total_val,
-                'tax_enabled'    => $tax_enabled,
-                'tax_rate'       => $tax_rate,
-                'discount_rate'  => $discount_rate,
+                'tax_enabled'    => 0,
+                'tax_rate'       => 0,
+                'discount_rate'  => 0,
                 'quote_number'   => $quote_number ?: null,
                 'notes'          => $notes,
                 'updated_at'     => current_time( 'mysql' ),
@@ -176,9 +175,9 @@ class Library_Orders {
                 'supplier_id'    => $supplier_id,
                 'total_quantity' => $total_qty,
                 'total_value'    => $total_val,
-                'tax_enabled'    => $tax_enabled,
-                'tax_rate'       => $tax_rate,
-                'discount_rate'  => $discount_rate,
+                'tax_enabled'    => 0,
+                'tax_rate'       => 0,
+                'discount_rate'  => 0,
                 'quote_number'   => $quote_number ?: null,
                 'notes'          => $notes,
                 'created_by'     => $uid,
@@ -186,7 +185,6 @@ class Library_Orders {
             ] );
             $id = $wpdb->insert_id;
         }
-        // Insert items + transactions
         foreach ( $items as $item ) {
             $wpdb->insert( $wpdb->prefix . 'rsyi_lib_add_order_items', array_merge( $item, [ 'order_id' => $id ] ) );
             Library_Transactions::record_add( $item['book_id'], $item['quantity'], $item['unit_price'], $id, $uid );
@@ -239,7 +237,7 @@ class Library_Orders {
         if ( ! $order ) { wp_send_json_error( [ 'message' => 'Not found' ] ); }
         $items = $wpdb->get_results( $wpdb->prepare(
             "SELECT i.*, b.title_ar, b.title_en, b.current_stock,
-                    p.student_name_ar AS student_name, p.student_id_number
+                    p.arabic_full_name AS student_name, p.national_id_number AS student_id_number
              FROM {$wpdb->prefix}rsyi_lib_withdrawal_order_items i
              LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id
              LEFT JOIN {$wpdb->prefix}rsyi_student_profiles p ON p.id=i.student_id
@@ -851,7 +849,7 @@ class Library_Orders {
     // ── Public helpers for templates ─────────────────────────────────────────
     static function get_cohorts(): array {
         global $wpdb;
-        return $wpdb->get_results( "SELECT id, name FROM {$wpdb->prefix}rsyi_cohorts WHERE status='active' ORDER BY name" ) ?: [];
+        return $wpdb->get_results( "SELECT id, name FROM {$wpdb->prefix}rsyi_cohorts WHERE is_active=1 ORDER BY name" ) ?: [];
     }
 
     static function get_trainers(): array {

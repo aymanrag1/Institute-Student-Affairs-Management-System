@@ -46,6 +46,8 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     <div class="rsyi-toolbar">
         <?php if($lib_can_manage): ?>
         <button class="button button-primary" id="btn-add-book">+ <?= rsyi_lib_t('إضافة عنصر', 'Add Item') ?></button>
+        <button class="button" id="btn-import-books">📥 <?= rsyi_lib_t('استيراد Excel', 'Import Excel') ?></button>
+        <button class="button" id="btn-dl-template">📄 <?= rsyi_lib_t('نموذج Excel', 'Excel Template') ?></button>
         <?php endif; ?>
         <select id="filter-cat"><option value=""><?= rsyi_lib_t('كل التصنيفات', 'All Categories') ?></option>
             <option value="curriculum"><?= rsyi_lib_t('مناهج أجنبية', 'Foreign Curriculum') ?></option><option value="certificate"><?= rsyi_lib_t('شهادات', 'Certificates') ?></option><option value="general"><?= rsyi_lib_t('عام', 'General') ?></option>
@@ -180,6 +182,20 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 
 <!-- ═══════════════════════════════ MODALS ═══════════════════════════════ -->
 
+<!-- Import Excel Modal -->
+<div id="import-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
+<div class="rsyi-modal-box" style="max-width:960px;max-height:90vh;overflow-y:auto;">
+    <h2 style="margin-top:0;border-bottom:1px solid #eee;padding-bottom:12px;">📥 <?= rsyi_lib_t('استيراد عناصر من Excel', 'Import Items from Excel') ?></h2>
+    <p style="color:#666;"><?= rsyi_lib_t('ارفع ملف .xlsx أو .csv يطابق أعمدة النموذج.', 'Upload an .xlsx or .csv file matching the template columns.') ?></p>
+    <input type="file" id="import-file" accept=".xlsx,.xls,.csv" style="margin-bottom:12px;">
+    <div id="import-preview" style="max-height:320px;overflow:auto;margin:12px 0;border:1px solid #ddd;border-radius:4px;padding:8px;display:none;"></div>
+    <p style="margin-top:12px;">
+        <button class="button button-primary" id="btn-do-import" style="display:none;">💾 <?= rsyi_lib_t('استيراد الكل', 'Import All') ?></button>
+        <button class="button rsyi-modal-close" data-modal="import-modal" style="margin-<?= $_lib_en?'left':'right' ?>:8px;"><?= rsyi_lib_t('إلغاء', 'Cancel') ?></button>
+    </p>
+    <div id="import-msg" style="display:none;margin-top:8px;"></div>
+</div></div>
+
 <!-- Book Modal -->
 <div id="book-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
 <div class="rsyi-modal-box" style="max-width:780px;">
@@ -288,25 +304,26 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     <input type="hidden" id="ao-id" value="0">
     <table class="form-table">
         <tr><th><?= rsyi_lib_t('المورد', 'Supplier') ?></th><td>
-            <select id="ao-supplier"><option value="0"><?= rsyi_lib_t('-- بدون مورد --', '-- No Supplier --') ?></option><?php foreach([] as $s){} ?></select>
-        </td></tr>
-        <tr><th><?= rsyi_lib_t('الضريبة', 'Tax') ?></th><td>
-            <label><input type="radio" name="ao_tax" value="0" checked> <?= rsyi_lib_t('بدون ضريبة', 'No Tax') ?></label> &nbsp;
-            <label><input type="radio" name="ao_tax" value="1"> <?= rsyi_lib_t('شامل ضريبة', 'Tax Included') ?></label>
-            <span id="ao-tax-rate-wrap" style="display:none;margin-right:12px;"><?= rsyi_lib_t('نسبة', 'Rate') ?>: <input type="number" id="ao-tax-rate" value="14" min="0" max="100" style="width:60px;"> %</span>
-        </td></tr>
-        <tr><th><?= rsyi_lib_t('رقم عرض السعر', 'Quote No.') ?></th><td><input type="text" id="ao-quote-num" class="regular-text" placeholder="RFQ-..."></td></tr>
-        <tr><th><?= rsyi_lib_t('نسبة الخصم', 'Discount %') ?></th><td><input type="number" id="ao-discount" value="0" min="0" max="100" step="0.01" style="width:80px;"> %</td></tr>
-        <tr><th><?= rsyi_lib_t('ملاحظات', 'Notes') ?></th><td><textarea id="ao-notes" class="large-text" rows="2"></textarea></td></tr>
+            <select id="ao-supplier"><option value="0"><?= rsyi_lib_t('-- بدون مورد --', '-- No Supplier --') ?></option></select>
+        </td>
+        <th><?= rsyi_lib_t('رقم عرض السعر', 'Quote No.') ?></th><td><input type="text" id="ao-quote-num" class="regular-text" placeholder="RFQ-..."></td></tr>
+        <tr><th><?= rsyi_lib_t('ملاحظات', 'Notes') ?></th><td colspan="3"><textarea id="ao-notes" class="large-text" rows="2"></textarea></td></tr>
     </table>
     <div style="margin:12px 0;">
         <strong><?= rsyi_lib_t('الكتب', 'Items') ?>:</strong>
         <button type="button" class="button button-small" id="btn-ao-add-row" style="margin-right:8px;">+ <?= rsyi_lib_t('إضافة سطر', 'Add Row') ?></button>
     </div>
     <table class="wp-list-table widefat" id="ao-items-table" style="direction:<?= $_dir ?>;">
-        <thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th style="width:80px;"><?= rsyi_lib_t('الكمية', 'Qty') ?></th><th style="width:110px;"><?= rsyi_lib_t('سعر الوحدة', 'Unit Price') ?></th><th style="width:40px;"></th></tr></thead>
+        <thead><tr>
+            <th><?= rsyi_lib_t('الكتاب', 'Book') ?></th>
+            <th style="width:70px;"><?= rsyi_lib_t('الكمية', 'Qty') ?></th>
+            <th style="width:90px;"><?= rsyi_lib_t('سعر الوحدة', 'Unit Price') ?></th>
+            <th style="width:70px;"><?= rsyi_lib_t('ضريبة %', 'Tax %') ?></th>
+            <th style="width:70px;"><?= rsyi_lib_t('خصم %', 'Disc %') ?></th>
+            <th style="width:40px;"></th>
+        </tr></thead>
         <tbody id="ao-items-body"></tbody>
-        <tfoot><tr><td colspan="2" style="text-align:left;"><strong><?= rsyi_lib_t('الإجمالي', 'Total') ?>: <span id="ao-total">0.00</span></strong></td><td colspan="2"></td></tr></tfoot>
+        <tfoot><tr><td colspan="3" style="text-align:<?= $_lib_en?'left':'right' ?>;"><strong><?= rsyi_lib_t('الإجمالي', 'Total') ?>: <span id="ao-total">0.00</span></strong></td><td colspan="3"></td></tr></tfoot>
     </table>
     <p style="margin-top:16px;">
         <button class="button button-primary" id="btn-save-add-order">💾 <?= rsyi_lib_t('حفظ', 'Save') ?></button>
@@ -618,12 +635,13 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         $('#ao-items-body tr').each(function(){
             var qty=parseFloat($(this).find('.ao-qty').val())||0;
             var price=parseFloat($(this).find('.ao-price').val())||0;
-            total+=qty*price;
+            var tax=parseFloat($(this).find('.ao-tax').val())||0;
+            var disc=parseFloat($(this).find('.ao-disc').val())||0;
+            var line=qty*price;
+            if(disc>0) line*=(1-disc/100);
+            if(tax>0)  line*=(1+tax/100);
+            total+=line;
         });
-        var discount=parseFloat($('#ao-discount').val())||0;
-        if(discount>0) total*=(1-discount/100);
-        var taxOn=$('input[name=ao_tax]:checked').val()==='1';
-        if(taxOn){ var rate=parseFloat($('#ao-tax-rate').val())||0; total*=(1+rate/100); }
         $('#ao-total').text(total.toFixed(2));
     }
 
@@ -778,29 +796,29 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     function openAddOrderModal(id){
         $('#ao-title').text(id?L.edit_ao_title:L.new_ao_title);$('#ao-id').val(id||0);
         $('#ao-items-body').html('');$('#ao-notes').val('');$('#ao-total').text('0.00');$('#ao-msg').hide();
-        $('input[name=ao_tax][value=0]').prop('checked',true);$('#ao-tax-rate-wrap').hide();
-        $('#ao-quote-num').val('');$('#ao-discount').val(0);
+        $('#ao-quote-num').val('');
         if(id){
             post('rsyi_lib_get_add_order',{order_id:id},function(r){
                 if(!r.success) return;
                 var o=r.data; $('#ao-supplier').val(o.supplier_id||0); $('#ao-notes').val(o.notes||'');
-                $('#ao-quote-num').val(o.quote_number||''); $('#ao-discount').val(o.discount_rate||0);
-                if(o.tax_enabled){$('input[name=ao_tax][value=1]').prop('checked',true);$('#ao-tax-rate').val(o.tax_rate||14);$('#ao-tax-rate-wrap').show();}
-                (o.items||[]).forEach(function(i){ addAoRow(i.book_id,i.quantity,i.unit_price); });
+                $('#ao-quote-num').val(o.quote_number||'');
+                (o.items||[]).forEach(function(i){ addAoRow(i.book_id,i.quantity,i.unit_price,i.tax_rate,i.discount_rate); });
                 calcAoTotal();
             });
         } else { addAoRow(); }
         openModal('add-order-modal');
     }
-    function addAoRow(bid,qty,price){
+    function addAoRow(bid,qty,price,tax,disc){
         var sel=buildBookSelect(bid);
         var row=$('<tr>').append(
             $('<td>').append(sel),
-            $('<td>').append($('<input type="number" class="ao-qty" value="'+(qty||1)+'" min="1" style="width:70px;">')),
-            $('<td>').append($('<input type="number" class="ao-price" value="'+(price||0)+'" min="0" step="0.01" style="width:90px;">')),
+            $('<td>').append($('<input type="number" class="ao-qty" value="'+(qty||1)+'" min="1" style="width:65px;">')),
+            $('<td>').append($('<input type="number" class="ao-price" value="'+(price||0)+'" min="0" step="0.01" style="width:85px;">')),
+            $('<td>').append($('<input type="number" class="ao-tax" value="'+(tax||0)+'" min="0" max="100" step="0.01" style="width:60px;">')),
+            $('<td>').append($('<input type="number" class="ao-disc" value="'+(disc||0)+'" min="0" max="100" step="0.01" style="width:60px;">')),
             $('<td>').append($('<button type="button" class="button button-small ao-del-row">×</button>'))
         );
-        row.find('.ao-qty,.ao-price').on('input',calcAoTotal);
+        row.find('.ao-qty,.ao-price,.ao-tax,.ao-disc').on('input',calcAoTotal);
         row.find('.ao-del-row').on('click',function(){ $(this).closest('tr').remove(); calcAoTotal(); });
         $('#ao-items-body').append(row);
     }
@@ -811,18 +829,16 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         post('rsyi_lib_delete_add_order',{order_id:$(this).data('id')},function(r){ alert(r.data.message); if(r.success) loadAddOrders(); });
     });
     $('#btn-ao-add-row').on('click',function(){ addAoRow(); });
-    $('input[name=ao_tax]').on('change',function(){ $('#ao-tax-rate-wrap').toggle($(this).val()==='1'); calcAoTotal(); });
-    $('#ao-tax-rate,#ao-discount').on('input',calcAoTotal);
+    // Tax/Discount are now per-item — no order-level listeners needed
     $('#btn-save-add-order').on('click',function(){
         var items=[];
         $('#ao-items-body tr').each(function(){
             var bid=$(this).find('.book-sel').val();
-            if(bid) items.push({book_id:bid,quantity:$(this).find('.ao-qty').val(),unit_price:$(this).find('.ao-price').val()});
+            if(bid) items.push({book_id:bid,quantity:$(this).find('.ao-qty').val(),unit_price:$(this).find('.ao-price').val(),tax_rate:$(this).find('.ao-tax').val(),discount_rate:$(this).find('.ao-disc').val()});
         });
         if(!items.length){alert(L.alert_add_book);return;}
         post('rsyi_lib_save_add_order',{order_id:$('#ao-id').val(),supplier_id:$('#ao-supplier').val(),
-            tax_enabled:$('input[name=ao_tax]:checked').val(),tax_rate:$('#ao-tax-rate').val(),
-            discount_rate:$('#ao-discount').val(),quote_number:$('#ao-quote-num').val(),
+            quote_number:$('#ao-quote-num').val(),
             notes:$('#ao-notes').val(),items:JSON.stringify(items)},function(r){
             msg('#ao-msg',r.data.message,r.success); if(r.success){setTimeout(function(){$('#add-order-modal').hide();loadAddOrders();loadBooksCache();loadDashboard();},700);}
         });
@@ -1212,6 +1228,54 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         });
     }
 
+    // ── EXCEL IMPORT ─────────────────────────────────────────────────────────
+    var importRows=[];
+    $('#btn-import-books').on('click',function(){
+        importRows=[];$('#import-preview').hide().html('');$('#btn-do-import').hide();$('#import-msg').hide();$('#import-file').val('');
+        openModal('import-modal');
+    });
+    $('#btn-dl-template').on('click',function(){
+        if(typeof XLSX==='undefined'){ alert('SheetJS not loaded'); return; }
+        var cols=['Title','Title EN','Author','Publisher','Subject','Cohort','For (Trainers/Students/Learning Aids)','Category (curriculum/certificate/general)','Language (en/ar/fr/other)','ISBN','Unit (copy/volume)','Price','Min Stock','Max Stock','Description'];
+        var wb=XLSX.utils.book_new();
+        var ws=XLSX.utils.aoa_to_sheet([cols,['Example Item','Example Item EN','Author Name','Publisher','Math','Cohort A','Trainers','curriculum','en','978-0000000000','copy',0,0,0,'']]);
+        XLSX.utils.book_append_sheet(wb,ws,'Items');
+        XLSX.writeFile(wb,'rya_items_template.xlsx');
+    });
+    $('#import-file').on('change',function(e){
+        var f=e.target.files[0]; if(!f) return;
+        if(typeof XLSX==='undefined'){ alert('SheetJS not loaded'); return; }
+        var reader=new FileReader();
+        reader.onload=function(ev){
+            try{
+                var wb=XLSX.read(ev.target.result,{type:'binary'});
+                var ws=wb.Sheets[wb.SheetNames[0]];
+                var rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+                importRows=rows;
+                if(!rows.length){$('#import-preview').show().html('<p style="color:orange;padding:8px;">No data rows found.</p>');$('#btn-do-import').hide();return;}
+                var keys=Object.keys(rows[0]);
+                var t='<table class="wp-list-table widefat striped" style="font-size:12px;"><thead><tr>';
+                keys.forEach(function(k){t+='<th style="white-space:nowrap;">'+$('<div>').text(k).html()+'</th>';});
+                t+='</tr></thead><tbody>';
+                rows.slice(0,15).forEach(function(r){t+='<tr>';keys.forEach(function(k){t+='<td>'+$('<div>').text(String(r[k])).html()+'</td>';});t+='</tr>';});
+                if(rows.length>15) t+='<tr><td colspan="'+keys.length+'" style="text-align:center;color:#888;padding:6px;">…و'+(rows.length-15)+' صف آخر / …and '+(rows.length-15)+' more rows</td></tr>';
+                t+='</tbody></table>';
+                $('#import-preview').show().html(t);
+                $('#btn-do-import').show();
+            }catch(ex){$('#import-preview').show().html('<p style="color:red;padding:8px;">Error reading file: '+ex.message+'</p>');$('#btn-do-import').hide();}
+        };
+        reader.readAsBinaryString(f);
+    });
+    $('#btn-do-import').on('click',function(){
+        if(!importRows.length) return;
+        var btn=$(this); btn.prop('disabled',true);
+        post('rsyi_import_books',{items:JSON.stringify(importRows)},function(r){
+            btn.prop('disabled',false);
+            msg('#import-msg',r.data.message,r.success);
+            if(r.success){setTimeout(function(){$('#import-modal').hide();loadBooks();loadBooksCache();loadDashboard();},1000);}
+        });
+    });
+
     // ── INIT ─────────────────────────────────────────────────────────────────
     $(document).ready(function(){
         loadDashboard();
@@ -1221,3 +1285,4 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 
 })(jQuery);
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>

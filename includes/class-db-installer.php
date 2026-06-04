@@ -91,6 +91,10 @@ class DB_Installer {
                 'discount_rate' => 'DECIMAL(5,2) NOT NULL DEFAULT 0.00',
                 'quote_number'  => 'VARCHAR(100) DEFAULT NULL',
             ],
+            $p . 'rsyi_lib_add_order_items' => [
+                'tax_rate'      => 'DECIMAL(5,2) NOT NULL DEFAULT 0.00',
+                'discount_rate' => 'DECIMAL(5,2) NOT NULL DEFAULT 0.00',
+            ],
             $p . 'rsyi_lib_withdrawal_order_items' => [
                 'student_id' => 'BIGINT UNSIGNED DEFAULT NULL',
             ],

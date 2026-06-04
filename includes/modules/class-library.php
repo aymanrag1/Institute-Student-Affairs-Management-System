@@ -17,7 +17,7 @@ class Library {
         // Books CRUD
         $book_actions = [
             'rsyi_save_book', 'rsyi_delete_book', 'rsyi_get_books',
-            'rsyi_get_available_books',
+            'rsyi_get_available_books', 'rsyi_import_books',
             // Legacy simple issue/return kept for portal
             'rsyi_issue_book', 'rsyi_return_book', 'rsyi_get_issues', 'rsyi_get_student_books',
         ];
@@ -34,6 +34,7 @@ class Library {
             'rsyi_delete_book'        => 'ajax_delete_book',
             'rsyi_get_books'          => 'ajax_get_books',
             'rsyi_get_available_books'=> 'ajax_get_available_books',
+            'rsyi_import_books'       => 'ajax_import_books',
             'rsyi_issue_book'         => 'ajax_issue_book',
             'rsyi_return_book'        => 'ajax_return_book',
             'rsyi_get_issues'         => 'ajax_get_issues',
@@ -188,7 +189,7 @@ class Library {
         if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) && ! current_user_can( 'manage_options' ) ) { wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] ); }
         global $wpdb;
         $rows = $wpdb->get_results(
-            "SELECT i.*, b.title_ar, b.title_en, p.student_name_ar, p.student_id_number, u.display_name AS issued_by_name
+            "SELECT i.*, b.title_ar, b.title_en, p.arabic_full_name AS student_name_ar, p.national_id_number AS student_id_number, u.display_name AS issued_by_name
              FROM {$wpdb->prefix}rsyi_book_issues i
              LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id
              LEFT JOIN {$wpdb->prefix}rsyi_student_profiles p ON p.id=i.student_id
@@ -208,6 +209,70 @@ class Library {
              LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id WHERE i.student_id=%d ORDER BY i.issued_at DESC", $sid
         ) );
         wp_send_json_success( $rows ?: [] );
+    }
+
+    // ── Bulk import from Excel (JSON rows sent from SheetJS) ─────────────────
+    static function ajax_import_books(): void {
+        check_ajax_referer( 'rsyi_sa_admin', 'nonce' );
+        if ( ! current_user_can( 'rsyi_lib_manage_warehouse' ) && ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [ 'message' => 'غير مصرح / Unauthorized' ] );
+        }
+        global $wpdb;
+        $rows_raw = json_decode( stripslashes( $_POST['items'] ?? '[]' ), true );
+        if ( empty( $rows_raw ) ) { wp_send_json_error( [ 'message' => 'لا توجد بيانات / No data' ] ); }
+
+        $uid = get_current_user_id();
+        $inserted = 0; $skipped = 0;
+        $audience_map = [ 'students' => 'students', 'طلاب' => 'students', 'learning' => 'learning_aids', 'aids' => 'learning_aids', 'مساعدات' => 'learning_aids' ];
+
+        foreach ( $rows_raw as $row ) {
+            $title = sanitize_text_field( $row['Title'] ?? $row['title'] ?? $row['العنوان'] ?? '' );
+            if ( ! $title ) { $skipped++; continue; }
+
+            $cat_raw = strtolower( $row['Category'] ?? $row['category'] ?? $row['التصنيف'] ?? 'general' );
+            $cat     = in_array( $cat_raw, [ 'curriculum', 'certificate', 'general' ], true ) ? $cat_raw : 'general';
+
+            $lang_raw = strtolower( $row['Language'] ?? $row['language'] ?? $row['اللغة'] ?? 'en' );
+            $lang     = in_array( $lang_raw, [ 'en', 'ar', 'fr', 'other' ], true ) ? $lang_raw : 'en';
+
+            $aud_raw  = strtolower( $row['For'] ?? $row['for'] ?? $row['لـ'] ?? '' );
+            $audience = 'trainers';
+            foreach ( $audience_map as $k => $v ) { if ( str_contains( $aud_raw, $k ) ) { $audience = $v; break; } }
+
+            $unit_raw = strtolower( $row['Unit'] ?? $row['unit'] ?? $row['الوحدة'] ?? 'copy' );
+            $unit     = ( $unit_raw === 'volume' || $unit_raw === 'مجلد' ) ? 'volume' : 'copy';
+
+            $wpdb->insert( $wpdb->prefix . 'rsyi_books', [
+                'title_ar'        => $title,
+                'title_en'        => sanitize_text_field( $row['Title EN'] ?? $row['title_en'] ?? $title ),
+                'author'          => sanitize_text_field( $row['Author'] ?? $row['المؤلف'] ?? '' ),
+                'publisher'       => sanitize_text_field( $row['Publisher'] ?? $row['الناشر'] ?? '' ),
+                'subject'         => sanitize_text_field( $row['Subject'] ?? $row['المادة'] ?? '' ),
+                'grade_level'     => sanitize_text_field( $row['Cohort'] ?? $row['المجموعة'] ?? '' ),
+                'target_audience' => $audience,
+                'category'        => $cat,
+                'language'        => $lang,
+                'isbn'            => sanitize_text_field( $row['ISBN'] ?? $row['isbn'] ?? '' ),
+                'unit'            => $unit,
+                'price'           => (float) ( $row['Price'] ?? $row['السعر'] ?? 0 ),
+                'min_stock'       => max( 0, intval( $row['Min Stock'] ?? $row['حد أدنى'] ?? 0 ) ),
+                'max_stock'       => max( 0, intval( $row['Max Stock'] ?? $row['حد أقصى'] ?? 0 ) ),
+                'description'     => sanitize_textarea_field( $row['Description'] ?? $row['الوصف'] ?? '' ),
+                'is_active'       => 1,
+                'total_copies'    => 0,
+                'available_copies'=> 0,
+                'current_stock'   => 0,
+                'added_by'        => $uid,
+                'created_at'      => current_time( 'mysql' ),
+                'updated_at'      => current_time( 'mysql' ),
+            ] );
+            $inserted++;
+        }
+        \RSYI_SA\Audit_Log::log( 'book', 0, 'bulk_import', [ 'inserted' => $inserted, 'skipped' => $skipped ] );
+        wp_send_json_success( [
+            'message' => "تم استيراد {$inserted} عنصر" . ( $skipped ? "، تم تخطي {$skipped}" : '' )
+                       . " / Imported {$inserted}" . ( $skipped ? ", skipped {$skipped}" : '' ),
+        ] );
     }
 
     // ── Helpers used by templates + portal ───────────────────────────────────
@@ -238,7 +303,8 @@ class Library {
     static function get_all_students(): array {
         global $wpdb;
         return $wpdb->get_results(
-            "SELECT id, student_name_ar, student_id_number FROM {$wpdb->prefix}rsyi_student_profiles WHERE status='active' ORDER BY student_name_ar"
+            "SELECT id, arabic_full_name AS student_name_ar, national_id_number AS student_id_number
+             FROM {$wpdb->prefix}rsyi_student_profiles ORDER BY arabic_full_name"
         ) ?: [];
     }
 }
