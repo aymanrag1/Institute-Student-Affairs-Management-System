@@ -164,6 +164,7 @@ class Roles {
             'rsyi_student_affairs_mgr' => [
                 'label' => 'Student Affairs Manager / مدير شؤون الطلاب',
                 'caps'  => [
+                    'read'                         => true,
                     'rsyi_view_all_students'       => true,
                     'rsyi_view_all_documents'      => true,
                     'rsyi_view_all_requests'       => true,
@@ -192,6 +193,7 @@ class Roles {
             'rsyi_student_supervisor' => [
                 'label' => 'Student Supervisor / المشرف الأكاديمي',
                 'caps'  => [
+                    'read'                         => true,
                     'rsyi_view_all_students'       => true,
                     'rsyi_view_all_documents'      => true,
                     'rsyi_view_all_requests'       => true,
@@ -209,6 +211,7 @@ class Roles {
             'rsyi_dorm_supervisor' => [
                 'label' => 'Dorm Supervisor / مشرف السكن',
                 'caps'  => [
+                    'read'                         => true,
                     'rsyi_view_all_students'       => true,
                     'rsyi_view_all_requests'       => true,
                     'rsyi_approve_exit_permit'     => true,
@@ -224,6 +227,7 @@ class Roles {
             'rsyi_senior_naval_trainer' => [
                 'label' => 'Senior Naval Trainer / كبير المدربين البحريين',
                 'caps'  => [
+                    'read'                         => true,
                     'rsyi_view_all_students'       => true,
                     'rsyi_manage_attendance'       => true,
                     'rsyi_upload_study_materials'  => true,
@@ -244,6 +248,7 @@ class Roles {
             'rsyi_naval_trainer' => [
                 'label' => 'Naval Trainer / المدرب البحري',
                 'caps'  => [
+                    'read'                         => true,
                     'rsyi_view_all_students'       => true,
                     'rsyi_manage_attendance'       => true,
                     'rsyi_upload_study_materials'  => true,
@@ -261,6 +266,7 @@ class Roles {
             'rsyi_preparatory_lecturer' => [
                 'label' => 'Preparatory Lecturer / المحاضر التحضيري',
                 'caps'  => [
+                    'read'                         => true,
                     'rsyi_view_all_students'       => true,
                     'rsyi_manage_attendance'       => true,
                     'rsyi_upload_study_materials'  => true,
