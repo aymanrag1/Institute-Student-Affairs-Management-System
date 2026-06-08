@@ -31,6 +31,8 @@ class Library_Orders {
             'rsyi_lib_convert_pr_to_add','rsyi_lib_get_pr','rsyi_lib_delete_pr',
             // Opening balances
             'rsyi_lib_get_opening','rsyi_lib_save_opening',
+            // Balance edit
+            'rsyi_lib_edit_balance',
             // Print data
             'rsyi_lib_get_print_data',
             // Dashboard
@@ -231,12 +233,15 @@ class Library_Orders {
         global $wpdb;
         $id    = intval( $_POST['order_id'] ?? 0 );
         $order = $wpdb->get_row( $wpdb->prepare(
-            "SELECT o.*, c.name AS cohort_name FROM {$wpdb->prefix}rsyi_lib_withdrawal_orders o
-             LEFT JOIN {$wpdb->prefix}rsyi_cohorts c ON c.id = o.cohort_id WHERE o.id=%d", $id
+            "SELECT o.*, c.name AS cohort_name, u.display_name AS created_by_name
+             FROM {$wpdb->prefix}rsyi_lib_withdrawal_orders o
+             LEFT JOIN {$wpdb->prefix}rsyi_cohorts c ON c.id = o.cohort_id
+             LEFT JOIN {$wpdb->users} u ON u.ID = o.created_by
+             WHERE o.id=%d", $id
         ) );
         if ( ! $order ) { wp_send_json_error( [ 'message' => 'Not found' ] ); }
         $items = $wpdb->get_results( $wpdb->prepare(
-            "SELECT i.*, b.title_ar, b.title_en, b.current_stock,
+            "SELECT i.*, b.title_ar, b.title_en, b.isbn, b.current_stock,
                     p.arabic_full_name AS student_name, p.national_id_number AS student_id_number
              FROM {$wpdb->prefix}rsyi_lib_withdrawal_order_items i
              LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id
@@ -691,6 +696,45 @@ class Library_Orders {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // BALANCE ADJUSTMENT (Admin direct edit)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    static function handle_edit_balance(): void {
+        self::check_manage();
+        global $wpdb;
+        $book_id   = intval( $_POST['book_id'] ?? 0 );
+        $new_stock = max( 0, intval( $_POST['new_stock'] ?? 0 ) );
+        $notes     = sanitize_textarea_field( $_POST['notes'] ?? '' );
+        $uid       = get_current_user_id();
+
+        $book = $wpdb->get_row( $wpdb->prepare( "SELECT id, title_ar, current_stock FROM {$wpdb->prefix}rsyi_books WHERE id=%d", $book_id ) );
+        if ( ! $book ) { wp_send_json_error( [ 'message' => 'العنصر غير موجود / Item not found' ] ); }
+
+        $old_stock = (int) $book->current_stock;
+        $wpdb->update( $wpdb->prefix . 'rsyi_books', [ 'current_stock' => $new_stock ], [ 'id' => $book_id ] );
+
+        // Record adjustment transaction
+        $wpdb->insert( $wpdb->prefix . 'rsyi_lib_transactions', [
+            'book_id'          => $book_id,
+            'transaction_type' => 'adjustment',
+            'quantity'         => $new_stock - $old_stock,
+            'unit_price'       => 0.00,
+            'remaining_qty'    => $new_stock,
+            'notes'            => $notes ?: "تعديل يدوي / Manual adjustment: {$old_stock} → {$new_stock}",
+            'created_by'       => $uid,
+            'created_at'       => current_time( 'mysql' ),
+        ] );
+
+        \RSYI_SA\Audit_Log::log( 'book', $book_id, 'edit_balance', [
+            'old_stock' => $old_stock,
+            'new_stock' => $new_stock,
+            'notes'     => $notes,
+        ] );
+
+        wp_send_json_success( [ 'message' => "تم تعديل الرصيد / Balance updated: {$old_stock} → {$new_stock}" ] );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // PRINT DATA
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -721,9 +765,26 @@ class Library_Orders {
                  LEFT JOIN {$wpdb->users} a ON a.ID=o.approved_by WHERE o.id=%d", $id
             ) );
             $data['items'] = $wpdb->get_results( $wpdb->prepare(
-                "SELECT i.*, b.title_ar, b.title_en FROM {$wpdb->prefix}rsyi_lib_withdrawal_order_items i
+                "SELECT i.*, b.title_ar, b.title_en, b.isbn,
+                    (SELECT aoi.unit_price
+                     FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
+                     JOIN {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id=aoi.order_id
+                     WHERE aoi.book_id=i.book_id
+                     ORDER BY ao.created_at DESC LIMIT 1) AS last_purchase_price
+                 FROM {$wpdb->prefix}rsyi_lib_withdrawal_order_items i
                  LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id WHERE i.order_id=%d", $id
             ) );
+            // Chief Instructor info for signature
+            $approved_by_id = intval( $data['order']->approved_by ?? 0 );
+            if ( ! $approved_by_id ) {
+                $ci_users = get_users( [ 'role' => 'rsyi_senior_naval_trainer', 'number' => 1, 'fields' => [ 'ID', 'display_name' ] ] );
+                if ( $ci_users ) { $approved_by_id = (int) $ci_users[0]->ID; }
+            }
+            $data['chief_instructor_name'] = $data['order']->approved_by_name
+                ?? ( $approved_by_id ? get_userdata( $approved_by_id )->display_name : '' );
+            $data['chief_instructor_sig']  = $approved_by_id
+                ? get_user_meta( $approved_by_id, 'rsyi_chief_signature', true )
+                : '';
         } elseif ( $type === 'return' ) {
             $data['order'] = $wpdb->get_row( $wpdb->prepare(
                 "SELECT o.*, c.name AS cohort_name, u.display_name AS created_by_name

@@ -52,6 +52,11 @@ class Menu {
         add_action( 'wp_ajax_rsyi_get_exam_for_student',    [ __CLASS__, 'ajax_get_exam_for_student' ] );
         // DB migration (admin-only manual trigger)
         add_action( 'wp_ajax_rsyi_run_db_migration',        [ __CLASS__, 'ajax_run_db_migration' ] );
+        // Chief Instructor signature on user profile
+        add_action( 'show_user_profile',          [ __CLASS__, 'page_user_signature' ] );
+        add_action( 'edit_user_profile',          [ __CLASS__, 'page_user_signature' ] );
+        add_action( 'personal_options_update',    [ __CLASS__, 'save_user_signature' ] );
+        add_action( 'edit_user_profile_update',   [ __CLASS__, 'save_user_signature' ] );
     }
 
     public static function register_menus(): void {
@@ -1769,5 +1774,39 @@ class Menu {
         update_option( \RSYI_SA\DB_Installer::DB_VERSION_OPTION, \RSYI_SA\DB_Installer::DB_VERSION );
 
         wp_send_json_success( [ 'message' => __( 'تم تحديث قاعدة البيانات بنجاح.', 'rsyi-sa' ) ] );
+    }
+
+    // ─── Chief Instructor Signature (User Profile) ────────────────────────────
+
+    public static function page_user_signature( \WP_User $user ): void {
+        if ( ! in_array( 'rsyi_senior_naval_trainer', (array) $user->roles, true ) ) {
+            return;
+        }
+        $sig = esc_url( get_user_meta( $user->ID, 'rsyi_chief_signature', true ) );
+        ?>
+        <h2><?= esc_html__( 'توقيع كبير المدربين / Chief Instructor Signature', 'rsyi-sa' ) ?></h2>
+        <table class="form-table">
+            <tr>
+                <th><label for="rsyi_chief_signature"><?= esc_html__( 'رابط صورة التوقيع / Signature Image URL', 'rsyi-sa' ) ?></label></th>
+                <td>
+                    <input type="url" id="rsyi_chief_signature" name="rsyi_chief_signature"
+                           value="<?= $sig ?>" class="regular-text" placeholder="https://...">
+                    <?php wp_nonce_field( 'rsyi_save_signature_' . $user->ID, 'rsyi_sig_nonce' ); ?>
+                    <?php if ( $sig ) : ?>
+                        <p><img src="<?= $sig ?>" style="max-height:80px;margin-top:8px;border:1px solid #ddd;padding:4px;border-radius:4px;"></p>
+                    <?php endif; ?>
+                    <p class="description"><?= esc_html__( 'اعتمد الصورة عبر مكتبة الوسائط ثم انسخ الرابط هنا', 'rsyi-sa' ) ?></p>
+                </td>
+            </tr>
+        </table>
+        <?php
+    }
+
+    public static function save_user_signature( int $user_id ): void {
+        if ( ! isset( $_POST['rsyi_sig_nonce'] ) ) { return; }
+        if ( ! wp_verify_nonce( $_POST['rsyi_sig_nonce'], 'rsyi_save_signature_' . $user_id ) ) { return; }
+        if ( ! current_user_can( 'edit_user', $user_id ) ) { return; }
+        $url = isset( $_POST['rsyi_chief_signature'] ) ? esc_url_raw( $_POST['rsyi_chief_signature'] ) : '';
+        update_user_meta( $user_id, 'rsyi_chief_signature', $url );
     }
 }

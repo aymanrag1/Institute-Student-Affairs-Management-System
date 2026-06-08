@@ -223,9 +223,9 @@ class Roles {
                 ],
             ],
 
-            // ── NEW: كبير المدربين البحريين ───────────────────────────
+            // ── كبير المدربين ─────────────────────────────────────────
             'rsyi_senior_naval_trainer' => [
-                'label' => 'Senior Naval Trainer / كبير المدربين البحريين',
+                'label' => 'Chief Instructor / كبير المدربين',
                 'caps'  => [
                     'read'                         => true,
                     'rsyi_view_all_students'       => true,

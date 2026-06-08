@@ -402,6 +402,34 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     <div id="ret-msg" style="display:none;margin-top:8px;"></div>
 </div></div>
 
+<!-- Balance Edit Modal -->
+<div id="balance-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
+<div class="rsyi-modal-box" style="max-width:420px;">
+    <h2 style="margin-top:0;">🔢 <?= rsyi_lib_t('تعديل الرصيد', 'Edit Stock Balance') ?></h2>
+    <input type="hidden" id="bal-book-id" value="0">
+    <table class="form-table">
+        <tr><th><?= rsyi_lib_t('العنصر', 'Item') ?></th><td><strong id="bal-book-name"></strong></td></tr>
+        <tr><th><?= rsyi_lib_t('الرصيد الحالي', 'Current Stock') ?></th><td><strong id="bal-current" style="color:#0073aa;font-size:16px;"></strong></td></tr>
+        <tr><th><?= rsyi_lib_t('الرصيد الجديد', 'New Stock') ?> *</th><td><input type="number" id="bal-new-stock" class="small-text" min="0" value="0"></td></tr>
+        <tr><th><?= rsyi_lib_t('ملاحظات', 'Notes') ?></th><td><textarea id="bal-notes" rows="2" class="large-text" placeholder="<?= rsyi_lib_t('سبب التعديل…', 'Reason for adjustment…') ?>"></textarea></td></tr>
+    </table>
+    <p style="margin-top:16px;">
+        <button class="button button-primary" id="btn-save-balance">💾 <?= rsyi_lib_t('حفظ', 'Save') ?></button>
+        <button class="button rsyi-modal-close" data-modal="balance-modal" style="margin-<?= $_lib_en?'left':'right' ?>:8px;"><?= rsyi_lib_t('إلغاء', 'Cancel') ?></button>
+    </p>
+    <div id="bal-msg" style="display:none;margin-top:8px;"></div>
+</div></div>
+
+<!-- WD View Modal (read-only preview before approval) -->
+<div id="wd-view-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
+<div class="rsyi-modal-box" style="max-width:800px;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h2 style="margin:0;">👁 <?= rsyi_lib_t('معاينة إذن الصرف', 'View Withdrawal Order') ?></h2>
+        <button class="button rsyi-modal-close" data-modal="wd-view-modal">✕</button>
+    </div>
+    <div id="wd-view-content" style="font-size:14px;"></div>
+</div></div>
+
 <!-- PR Modal -->
 <div id="pr-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
 <div class="rsyi-modal-box" style="max-width:750px;max-height:90vh;overflow-y:auto;">
@@ -693,6 +721,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                     '<td>'+(b.subject||'—')+'</td><td>'+(b.grade_level||'—')+'</td><td>'+(b.isbn||'—')+'</td>'+
                     '<td '+sc+'>'+b.current_stock+'</td><td>'+(b.min_stock||0)+'</td><td>'+
                     (canManage?'<button class="button button-small btn-edit-book" data-b=\''+JSON.stringify(b)+'\'><?= rsyi_lib_t('تعديل', 'Edit') ?></button> '+
+                    '<button class="button button-small btn-edit-balance" data-id="'+b.id+'" data-stock="'+b.current_stock+'" data-name="'+(b.title_ar||b.title_en).replace(/"/g,"&quot;")+'">🔢</button> '+
                     '<button class="button button-small btn-del-book" data-id="'+b.id+'"><?= rsyi_lib_t('حذف', 'Delete') ?></button>':'—')+'</td></tr>';
             });
             $('#books-list').html(html);
@@ -859,6 +888,9 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                           '<button class="button button-small btn-submit-wd" data-id="'+o.id+'">'+L.submit_btn+'</button> '+
                           '<button class="button button-small btn-del-wd" data-id="'+o.id+'">'+L.delete+'</button> ';
                 }
+                if(o.status!=='draft'){
+                    acts+='<button class="button button-small btn-view-wd" data-id="'+o.id+'">👁</button> ';
+                }
                 if(canApproveWd&&o.status==='pending'){
                     acts+='<button class="button button-small btn-approve-wd" data-id="'+o.id+'" style="color:green;">'+L.approve+'</button> '+
                           '<button class="button button-small btn-reject-wd" data-id="'+o.id+'" style="color:red;">'+L.reject+'</button> ';
@@ -963,6 +995,56 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         post('rsyi_lib_delete_wd_order',{order_id:$(this).data('id')},function(r){ alert(r.data.message); if(r.success) loadWdOrders(); });
     });
     $(document).on('click','.btn-print-wd',function(){ printOrder('withdrawal',$(this).data('id')); });
+
+    // ── View WD Order (read-only preview) ─────────────────────────────────────
+    $(document).on('click','.btn-view-wd',function(){
+        var id=$(this).data('id');
+        post('rsyi_lib_get_wd_order',{order_id:id},function(r){
+            if(!r.success){ alert(L.alert_fetch_err); return; }
+            var o=r.data, items=o.items||[];
+            var html='<table class="wp-list-table widefat striped" style="margin-bottom:16px;border:none;"><tbody>'+
+                '<tr><td style="border:none;width:140px;font-weight:600;">'+L.print_order_no+'</td><td style="border:none;">'+o.order_number+'</td>'+
+                    '<td style="border:none;width:140px;font-weight:600;">'+L.print_date_lbl+'</td><td style="border:none;">'+(o.created_at||'').substr(0,10)+'</td></tr>'+
+                '<tr><td style="border:none;font-weight:600;">'+L.print_cohort_lbl+'</td><td style="border:none;">'+(o.cohort_name||'—')+'</td>'+
+                    '<td style="border:none;font-weight:600;"><?= rsyi_lib_t('النوع','Type') ?></td><td style="border:none;">'+(o.order_type==='custody'?L.custody_type:L.normal_type)+'</td></tr>'+
+                '<tr><td style="border:none;font-weight:600;"><?= rsyi_lib_t('بواسطة','By') ?></td><td colspan="3" style="border:none;">'+(o.created_by_name||'—')+'</td></tr>'+
+                (o.notes?'<tr><td style="border:none;font-weight:600;">'+L.print_notes_lbl+'</td><td colspan="3" style="border:none;">'+o.notes+'</td></tr>':'')+
+                '</tbody></table>';
+            html+='<table class="wp-list-table widefat striped"><thead><tr>'+
+                '<th><?= rsyi_lib_t('العنصر','Item') ?></th><th>ISBN</th>'+
+                '<th style="width:80px;"><?= rsyi_lib_t('الكمية','Qty') ?></th>'+
+                '<th><?= rsyi_lib_t('الطالب','Student') ?></th></tr></thead><tbody>';
+            if(!items.length) html+='<tr><td colspan="4" style="text-align:center;">'+L.no_books+'</td></tr>';
+            items.forEach(function(i){
+                html+='<tr><td>'+(i.title_ar||i.title_en||'—')+'</td><td>'+(i.isbn||'—')+'</td>'+
+                    '<td>'+i.quantity+'</td><td>'+(i.student_name||i.student_id_number||'—')+'</td></tr>';
+            });
+            html+='</tbody></table>';
+            $('#wd-view-content').html(html);
+            openModal('wd-view-modal');
+        });
+    });
+
+    // ── Edit Stock Balance ────────────────────────────────────────────────────
+    $(document).on('click','.btn-edit-balance',function(){
+        var btn=$(this);
+        $('#bal-book-id').val(btn.data('id'));
+        $('#bal-book-name').text(btn.data('name'));
+        $('#bal-current').text(btn.data('stock'));
+        $('#bal-new-stock').val(btn.data('stock'));
+        $('#bal-notes').val('');
+        $('#bal-msg').hide();
+        openModal('balance-modal');
+    });
+    $('#btn-save-balance').on('click',function(){
+        var bid=$('#bal-book-id').val();
+        var ns=$('#bal-new-stock').val();
+        if(ns===''||ns<0){ alert('<?= rsyi_lib_t('أدخل رصيداً صحيحاً','Enter a valid stock value') ?>'); return; }
+        post('rsyi_lib_edit_balance',{book_id:bid,new_stock:ns,notes:$('#bal-notes').val()},function(r){
+            msg('#bal-msg',r.data.message,r.success);
+            if(r.success){ setTimeout(function(){ $('#balance-modal').hide(); loadBooks(); loadBooksCache(); loadDashboard(); },700); }
+        });
+    });
 
     // ═══ RETURN ORDERS ════════════════════════════════════════════════════════
     function loadRetOrders(){
@@ -1203,28 +1285,59 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             if(!r.success){ alert(L.alert_fetch_err); return; }
             var d=r.data, o=d.order, items=d.items||[];
             var logo=d.logo?'<img src="'+d.logo+'" style="max-height:70px;">':'';
-            var rows=''; var total=0;
-            items.forEach(function(i){ var qty=parseInt(i.quantity||0); var price=parseFloat(i.unit_price||0); rows+='<tr><td>'+(i.title_ar||i.title_en||'')+'</td><td>'+(i.isbn||'—')+'</td><td>'+qty+'</td><td>'+price.toFixed(2)+'</td><td>'+(qty*price).toFixed(2)+'</td></tr>'; total+=qty*price; });
             var pdir='<?= $_lib_en ? 'ltr' : 'rtl' ?>';
             var ptype=(type==='add'?L.print_add:type==='withdrawal'?L.print_wd:L.print_ret);
-            var html='<!DOCTYPE html><html dir="'+pdir+'"><head><meta charset="UTF-8"><title>'+ptype+'</title>'+
-                '<style>body{font-family:Arial,sans-serif;direction:'+pdir+';padding:20px;}'+
-                'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #999;padding:6px 10px;text-align:'+(pdir==='rtl'?'right':'left')+';}'+
-                'thead{background:#eee;}.sig{display:inline-block;width:200px;border-top:1px solid #333;margin-top:60px;text-align:center;margin-left:40px;}</style></head><body>'+
-                '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+d.institute_name+'</h2><h3>'+ptype+'</h3></div>'+
-                '<table style="margin-bottom:16px;border:none;"><tr><td style="border:none;"><strong>'+L.print_order_no+'</strong> '+o.order_number+'</td><td style="border:none;"><strong>'+L.print_date_lbl+'</strong> '+(o.created_at||'').substr(0,10)+'</td></tr>'+
-                (o.supplier_name?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_supplier_lbl+'</strong> '+o.supplier_name+'</td></tr>':'')+
-                (o.cohort_name?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_cohort_lbl+'</strong> '+o.cohort_name+'</td></tr>':'')+
-                (o.notes?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_notes_lbl+'</strong> '+o.notes+'</td></tr>':'')+'</table>'+
-                '<table><thead><tr><th>'+L.print_book+'</th><th>ISBN</th><th>'+L.rpt_qty+'</th><th>'+L.print_price+'</th><th>'+L.print_total+'</th></tr></thead><tbody>'+rows+
-                '<tr><td colspan="4"><strong>'+L.print_total+'</strong></td><td><strong>'+total.toFixed(2)+'</strong></td></tr>'+
-                '</tbody></table>'+
-                '<div style="margin-top:40px;display:flex;justify-content:space-around;">'+
-                '<div class="sig">'+L.print_wh_mgr+'</div>'+
-                (o.approved_by_name?'<div class="sig">'+L.print_approved_by+': '+o.approved_by_name+'</div>':'<div class="sig">'+L.print_approved_by+'</div>')+
-                '</div>'+
-                '</body></html>';
-            var win=window.open('','_blank'); win.document.write(html); win.document.close(); win.print();
+            var rows='', total=0;
+
+            if(type==='withdrawal'){
+                // Points 4 & 5: use last_purchase_price + ISBN; Chief Instructor sig only
+                items.forEach(function(i){
+                    var qty=parseInt(i.quantity||0);
+                    var price=parseFloat(i.last_purchase_price||i.unit_price||0);
+                    var line=qty*price;
+                    total+=line;
+                    rows+='<tr><td>'+(i.title_ar||i.title_en||'')+'</td><td>'+(i.isbn||'—')+'</td><td>'+qty+'</td><td>'+price.toFixed(2)+'</td><td>'+line.toFixed(2)+'</td></tr>';
+                });
+                var ciName=d.chief_instructor_name||'';
+                var ciSig=d.chief_instructor_sig?'<img src="'+d.chief_instructor_sig+'" style="max-height:60px;display:block;margin:0 auto 6px;">':'';
+                var sigBlock='<div style="margin-top:40px;display:flex;justify-content:space-around;">'+
+                    '<div class="sig">'+ciSig+'<?= rsyi_lib_t('كبير المدربين','Chief Instructor') ?>'+(ciName?' / '+ciName:'')+'</div>'+
+                    '<div class="sig">'+ciSig+'<?= rsyi_lib_t('الاعتماد','Approved By') ?>'+(ciName?' / '+ciName:'')+'</div>'+
+                    '</div>';
+                var html='<!DOCTYPE html><html dir="'+pdir+'"><head><meta charset="UTF-8"><title>'+ptype+'</title>'+
+                    '<style>body{font-family:Arial,sans-serif;direction:'+pdir+';padding:20px;}'+
+                    'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #999;padding:6px 10px;text-align:'+(pdir==='rtl'?'right':'left')+';}'+
+                    'thead{background:#eee;}.sig{display:inline-block;width:220px;border-top:1px solid #333;margin-top:60px;text-align:center;margin:0 20px;}</style></head><body>'+
+                    '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+d.institute_name+'</h2><h3>'+ptype+'</h3></div>'+
+                    '<table style="margin-bottom:16px;border:none;"><tr><td style="border:none;"><strong>'+L.print_order_no+'</strong> '+o.order_number+'</td><td style="border:none;"><strong>'+L.print_date_lbl+'</strong> '+(o.created_at||'').substr(0,10)+'</td></tr>'+
+                    (o.cohort_name?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_cohort_lbl+'</strong> '+o.cohort_name+'</td></tr>':'')+
+                    (o.notes?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_notes_lbl+'</strong> '+o.notes+'</td></tr>':'')+'</table>'+
+                    '<table><thead><tr><th>'+L.print_book+'</th><th>ISBN</th><th>'+L.rpt_qty+'</th><th><?= rsyi_lib_t('آخر سعر شراء','Last Purchase Price') ?></th><th>'+L.print_total+'</th></tr></thead><tbody>'+rows+
+                    '<tr><td colspan="4"><strong>'+L.print_total+'</strong></td><td><strong>'+total.toFixed(2)+'</strong></td></tr>'+
+                    '</tbody></table>'+sigBlock+
+                    '</body></html>';
+                var win=window.open('','_blank'); win.document.write(html); win.document.close(); win.print();
+            } else {
+                items.forEach(function(i){ var qty=parseInt(i.quantity||0); var price=parseFloat(i.unit_price||0); rows+='<tr><td>'+(i.title_ar||i.title_en||'')+'</td><td>'+(i.isbn||'—')+'</td><td>'+qty+'</td><td>'+price.toFixed(2)+'</td><td>'+(qty*price).toFixed(2)+'</td></tr>'; total+=qty*price; });
+                var html='<!DOCTYPE html><html dir="'+pdir+'"><head><meta charset="UTF-8"><title>'+ptype+'</title>'+
+                    '<style>body{font-family:Arial,sans-serif;direction:'+pdir+';padding:20px;}'+
+                    'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #999;padding:6px 10px;text-align:'+(pdir==='rtl'?'right':'left')+';}'+
+                    'thead{background:#eee;}.sig{display:inline-block;width:200px;border-top:1px solid #333;margin-top:60px;text-align:center;margin-left:40px;}</style></head><body>'+
+                    '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+d.institute_name+'</h2><h3>'+ptype+'</h3></div>'+
+                    '<table style="margin-bottom:16px;border:none;"><tr><td style="border:none;"><strong>'+L.print_order_no+'</strong> '+o.order_number+'</td><td style="border:none;"><strong>'+L.print_date_lbl+'</strong> '+(o.created_at||'').substr(0,10)+'</td></tr>'+
+                    (o.supplier_name?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_supplier_lbl+'</strong> '+o.supplier_name+'</td></tr>':'')+
+                    (o.cohort_name?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_cohort_lbl+'</strong> '+o.cohort_name+'</td></tr>':'')+
+                    (o.notes?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_notes_lbl+'</strong> '+o.notes+'</td></tr>':'')+'</table>'+
+                    '<table><thead><tr><th>'+L.print_book+'</th><th>ISBN</th><th>'+L.rpt_qty+'</th><th>'+L.print_price+'</th><th>'+L.print_total+'</th></tr></thead><tbody>'+rows+
+                    '<tr><td colspan="4"><strong>'+L.print_total+'</strong></td><td><strong>'+total.toFixed(2)+'</strong></td></tr>'+
+                    '</tbody></table>'+
+                    '<div style="margin-top:40px;display:flex;justify-content:space-around;">'+
+                    '<div class="sig">'+L.print_wh_mgr+'</div>'+
+                    (o.approved_by_name?'<div class="sig">'+L.print_approved_by+': '+o.approved_by_name+'</div>':'<div class="sig">'+L.print_approved_by+'</div>')+
+                    '</div>'+
+                    '</body></html>';
+                var win=window.open('','_blank'); win.document.write(html); win.document.close(); win.print();
+            }
         });
     }
 
