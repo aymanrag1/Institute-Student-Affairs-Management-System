@@ -98,6 +98,9 @@ class DB_Installer {
             $p . 'rsyi_lib_withdrawal_order_items' => [
                 'student_id' => 'BIGINT UNSIGNED DEFAULT NULL',
             ],
+            $p . 'rsyi_lib_purchase_request_items' => [
+                'unit_price' => 'DECIMAL(10,2) NOT NULL DEFAULT 0.00',
+            ],
         ];
 
         foreach ( $migrations as $table => $columns ) {

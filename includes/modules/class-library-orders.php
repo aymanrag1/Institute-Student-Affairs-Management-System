@@ -537,7 +537,13 @@ class Library_Orders {
         $pr  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}rsyi_lib_purchase_requests WHERE id=%d", $id ) );
         if ( ! $pr ) { wp_send_json_error( [ 'message' => 'Not found' ] ); }
         $items = $wpdb->get_results( $wpdb->prepare(
-            "SELECT i.*, b.title_ar, b.title_en FROM {$wpdb->prefix}rsyi_lib_purchase_request_items i
+            "SELECT i.*, b.title_ar, b.title_en, b.isbn, b.current_stock,
+                (SELECT aoi.unit_price
+                 FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
+                 JOIN  {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id=aoi.order_id
+                 WHERE aoi.book_id=i.book_id
+                 ORDER BY ao.created_at DESC LIMIT 1) AS last_purchase_price
+             FROM {$wpdb->prefix}rsyi_lib_purchase_request_items i
              LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id WHERE i.request_id=%d", $id
         ) );
         $pr->items = $items ?: [];
@@ -588,9 +594,10 @@ class Library_Orders {
 
         $items = [];
         foreach ( $items_raw as $row ) {
-            $bid = intval( $row['book_id'] ?? 0 );
-            $qty = max( 1, intval( $row['quantity'] ?? 1 ) );
-            if ( $bid ) { $items[] = [ 'book_id' => $bid, 'quantity' => $qty, 'notes' => sanitize_text_field( $row['notes'] ?? '' ) ]; }
+            $bid   = intval( $row['book_id'] ?? 0 );
+            $qty   = max( 1, intval( $row['quantity'] ?? 1 ) );
+            $price = max( 0, (float) ( $row['unit_price'] ?? 0 ) );
+            if ( $bid ) { $items[] = [ 'book_id' => $bid, 'quantity' => $qty, 'unit_price' => $price, 'notes' => sanitize_text_field( $row['notes'] ?? '' ) ]; }
         }
 
         if ( $id > 0 ) {

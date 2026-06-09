@@ -175,8 +175,9 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <button class="button report-btn" data-report="cohort_withdrawal">👥 <?= rsyi_lib_t('صرف مجموعة', 'Cohort Withdrawal') ?></button>
         <button class="button report-btn" data-report="supplier">🏭 <?= rsyi_lib_t('مورد', 'Supplier') ?></button>
     </div>
-    <div id="report-filters" style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-        <button class="button" id="btn-print-report" style="margin-inline-start:auto;">🖨 <?= rsyi_lib_t('طباعة التقرير', 'Print Report') ?></button>
+    <div id="report-filters" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;"></div>
+    <div style="margin-bottom:12px;">
+        <button class="button" id="btn-print-report">🖨 <?= rsyi_lib_t('طباعة التقرير', 'Print Report') ?></button>
     </div>
     <div id="report-output"></div>
 </div>
@@ -445,7 +446,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <button type="button" class="button button-small" id="btn-pr-add-row">+ <?= rsyi_lib_t('إضافة سطر', 'Add Row') ?></button>
     </div>
     <table class="wp-list-table widefat" id="pr-items-table" style="direction:<?= $_dir ?>;">
-        <thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th style="width:80px;"><?= rsyi_lib_t('الكمية', 'Qty') ?></th><th style="width:160px;"><?= rsyi_lib_t('ملاحظة', 'Note') ?></th><th style="width:40px;"></th></tr></thead>
+        <thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th style="width:80px;"><?= rsyi_lib_t('الكمية', 'Qty') ?></th><th style="width:130px;"><?= rsyi_lib_t('السعر التقديري', 'Est. Price') ?></th><th style="width:120px;"><?= rsyi_lib_t('ملاحظة', 'Note') ?></th><th style="width:40px;"></th></tr></thead>
         <tbody id="pr-items-body"></tbody>
     </table>
     <p style="margin-top:16px;">
@@ -1170,19 +1171,33 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             post('rsyi_lib_get_pr',{pr_id:id},function(r){
                 if(!r.success) return;
                 $('#pr-notes').val(r.data.notes||'');
-                (r.data.items||[]).forEach(function(i){ addPrRow(i.book_id,i.quantity,i.notes); });
+                (r.data.items||[]).forEach(function(i){ addPrRow(i.book_id,i.quantity,i.unit_price||i.last_purchase_price||0,i.notes); });
             });
         } else { addPrRow(); }
         openModal('pr-modal');
     }
-    function addPrRow(bid,qty,notes){
+    function addPrRow(bid,qty,price,notes){
         var sel=buildBookSelect(bid);
+        var priceVal=parseFloat(price)||0;
+        // Auto-fill price from cache if not provided
+        if(!priceVal && bid){
+            var cached=booksCache.find(function(b){ return b.id==bid; });
+            if(cached) priceVal=parseFloat(cached.last_price)||0;
+        }
+        var priceInput=$('<input type="number" class="pr-price small-text" value="'+priceVal.toFixed(2)+'" min="0" step="0.01" style="width:100px;">');
         var row=$('<tr>').append(
             $('<td>').append(sel),
             $('<td>').append($('<input type="number" class="pr-qty" value="'+(qty||1)+'" min="1" style="width:70px;">')),
+            $('<td>').append(priceInput),
             $('<td>').append($('<input type="text" class="pr-notes-r regular-text" value="'+(notes||'')+'">')),
             $('<td>').append($('<button type="button" class="button button-small pr-del-row">×</button>'))
         );
+        // Auto-fill price when book changes
+        sel.on('change',function(){
+            var bookId=$(this).val();
+            var cached=booksCache.find(function(b){ return b.id==bookId; });
+            if(cached) row.find('.pr-price').val(parseFloat(cached.last_price||0).toFixed(2));
+        });
         row.find('.pr-del-row').on('click',function(){ $(this).closest('tr').remove(); });
         $('#pr-items-body').append(row);
     }
@@ -1199,7 +1214,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     $(document).on('click','.btn-edit-pr',function(){ openPrModal($(this).data('id')); });
     $('#btn-pr-add-row').on('click',function(){ addPrRow(); });
     $('#btn-save-pr').on('click',function(){
-        var items=[]; $('#pr-items-body tr').each(function(){ var bid=$(this).find('.book-sel').val(); if(bid) items.push({book_id:bid,quantity:$(this).find('.pr-qty').val(),notes:$(this).find('.pr-notes-r').val()}); });
+        var items=[]; $('#pr-items-body tr').each(function(){ var bid=$(this).find('.book-sel').val(); if(bid) items.push({book_id:bid,quantity:$(this).find('.pr-qty').val(),unit_price:$(this).find('.pr-price').val()||0,notes:$(this).find('.pr-notes-r').val()}); });
         if(!items.length){alert(L.alert_add_item);return;}
         post('rsyi_lib_save_pr',{pr_id:$('#pr-id').val(),notes:$('#pr-notes').val(),items:JSON.stringify(items)},function(r){
             msg('#pr-msg',r.data.message,r.success); if(r.success){setTimeout(function(){$('#pr-modal').hide();loadPrList();},700);}

@@ -126,7 +126,13 @@ class Library {
             $like    = '%' . $wpdb->esc_like( $search ) . '%';
             $vals    = array_merge( $vals, [ $like, $like, $like, $like ] );
         }
-        $sql   = "SELECT * FROM {$wpdb->prefix}rsyi_books WHERE " . implode( ' AND ', $where ) . ' ORDER BY title_ar';
+        $sql   = "SELECT b.*,
+                    (SELECT aoi.unit_price
+                     FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
+                     JOIN  {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id=aoi.order_id
+                     WHERE aoi.book_id=b.id
+                     ORDER BY ao.created_at DESC LIMIT 1) AS last_price
+                  FROM {$wpdb->prefix}rsyi_books b WHERE " . implode( ' AND ', $where ) . ' ORDER BY b.title_ar';
         $books = empty( $vals ) ? $wpdb->get_results( $sql ) : $wpdb->get_results( $wpdb->prepare( $sql, ...$vals ) );
         foreach ( $books as &$b ) { $b->cover_url = $b->cover_image_id ? wp_get_attachment_url( $b->cover_image_id ) : ''; }
         wp_send_json_success( $books ?: [] );
