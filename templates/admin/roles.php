@@ -49,6 +49,7 @@ $cap_groups = [
     'حضور/مواد/امتحانات' => [ 'rsyi_manage_attendance', 'rsyi_upload_study_materials', 'rsyi_manage_exams' ],
     'تقارير وسجلات' => [ 'rsyi_print_daily_report', 'rsyi_view_audit_log' ],
     'النظام'       => [ 'rsyi_manage_settings', 'rsyi_manage_roles' ],
+    'مخزن RYA'    => [ 'rsyi_lib_view_warehouse', 'rsyi_lib_manage_warehouse', 'rsyi_lib_approve_withdrawal', 'rsyi_lib_approve_purchase', 'rsyi_manage_library', 'rsyi_view_library' ],
 ];
 
 // Label map for display
@@ -92,6 +93,12 @@ $cap_labels = [
     'rsyi_view_audit_log'           => 'عرض سجل التدقيق',
     'rsyi_manage_settings'          => 'إدارة إعدادات النظام',
     'rsyi_manage_roles'             => 'إدارة الأدوار والصلاحيات',
+    'rsyi_lib_view_warehouse'       => 'عرض المخزن',
+    'rsyi_lib_manage_warehouse'     => 'إدارة المخزن (إضافة/تعديل أصناف)',
+    'rsyi_lib_approve_withdrawal'   => 'اعتماد أذون الصرف',
+    'rsyi_lib_approve_purchase'     => 'اعتماد طلبات الشراء',
+    'rsyi_manage_library'           => 'إدارة مخزن الكتب',
+    'rsyi_view_library'             => 'عرض مخزن الكتب',
 ];
 
 // Active role being edited
