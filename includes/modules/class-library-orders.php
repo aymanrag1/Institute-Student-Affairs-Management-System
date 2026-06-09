@@ -28,7 +28,7 @@ class Library_Orders {
             'rsyi_lib_get_ret_orders','rsyi_lib_save_ret_order','rsyi_lib_complete_ret_order','rsyi_lib_delete_ret_order','rsyi_lib_get_ret_order',
             // Purchase requests
             'rsyi_lib_get_pr_list','rsyi_lib_save_pr','rsyi_lib_approve_pr','rsyi_lib_reject_pr',
-            'rsyi_lib_convert_pr_to_add','rsyi_lib_get_pr','rsyi_lib_delete_pr',
+            'rsyi_lib_convert_pr_to_add','rsyi_lib_get_pr','rsyi_lib_delete_pr','rsyi_lib_get_pr_print_data',
             // Opening balances
             'rsyi_lib_get_opening','rsyi_lib_save_opening',
             // Balance edit
@@ -542,6 +542,39 @@ class Library_Orders {
         ) );
         $pr->items = $items ?: [];
         wp_send_json_success( $pr );
+    }
+
+    static function handle_get_pr_print_data(): void {
+        self::check_view();
+        global $wpdb;
+        $id = intval( $_POST['pr_id'] ?? 0 );
+        $pr = $wpdb->get_row( $wpdb->prepare(
+            "SELECT r.*, u.display_name AS requested_by_name, a.display_name AS approved_by_name
+             FROM {$wpdb->prefix}rsyi_lib_purchase_requests r
+             LEFT JOIN {$wpdb->users} u ON u.ID = r.requested_by
+             LEFT JOIN {$wpdb->users} a ON a.ID = r.approved_by
+             WHERE r.id=%d", $id
+        ) );
+        if ( ! $pr ) { wp_send_json_error( [ 'message' => 'Not found' ] ); }
+
+        $items = $wpdb->get_results( $wpdb->prepare(
+            "SELECT i.*, b.title_ar, b.title_en, b.isbn, b.current_stock,
+                (SELECT aoi.unit_price
+                 FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
+                 JOIN  {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id = aoi.order_id
+                 WHERE aoi.book_id = i.book_id
+                 ORDER BY ao.created_at DESC LIMIT 1) AS last_purchase_price
+             FROM {$wpdb->prefix}rsyi_lib_purchase_request_items i
+             LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id = i.book_id
+             WHERE i.request_id=%d", $id
+        ) );
+
+        wp_send_json_success( [
+            'pr'             => $pr,
+            'items'          => $items ?: [],
+            'logo'           => get_option( 'rsyi_logo_url', '' ),
+            'institute_name' => get_option( 'rsyi_institute_name', 'Red Sea Yacht Institute' ),
+        ] );
     }
 
     static function handle_save_pr(): void {

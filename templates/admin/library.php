@@ -175,7 +175,9 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <button class="button report-btn" data-report="cohort_withdrawal">👥 <?= rsyi_lib_t('صرف مجموعة', 'Cohort Withdrawal') ?></button>
         <button class="button report-btn" data-report="supplier">🏭 <?= rsyi_lib_t('مورد', 'Supplier') ?></button>
     </div>
-    <div id="report-filters" style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;"></div>
+    <div id="report-filters" style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+        <button class="button" id="btn-print-report" style="margin-inline-start:auto;">🖨 <?= rsyi_lib_t('طباعة التقرير', 'Print Report') ?></button>
+    </div>
     <div id="report-output"></div>
 </div>
 </div><!-- end .wrap -->
@@ -451,6 +453,36 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         <button class="button rsyi-modal-close" data-modal="pr-modal" style="margin-right:8px;"><?= rsyi_lib_t('إلغاء', 'Cancel') ?></button>
     </p>
     <div id="pr-msg" style="display:none;margin-top:8px;"></div>
+</div></div>
+
+<!-- PR Print Preview Modal -->
+<div id="pr-print-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
+<div class="rsyi-modal-box" style="max-width:900px;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h2 style="margin:0;">🖨 <?= rsyi_lib_t('معاينة طلب الشراء', 'Purchase Request Print Preview') ?></h2>
+        <button class="button rsyi-modal-close" data-modal="pr-print-modal">✕</button>
+    </div>
+    <p style="color:#888;font-size:13px;margin-top:0;"><?= rsyi_lib_t('يمكنك تعديل السعر التقديري لكل صنف قبل الطباعة', 'You can edit the estimated price for each item before printing') ?></p>
+    <div id="pr-print-header" style="margin-bottom:12px;font-size:13px;"></div>
+    <table class="wp-list-table widefat" id="pr-print-table" style="direction:<?= $_dir ?>;">
+        <thead><tr>
+            <th><?= rsyi_lib_t('الصنف', 'Item') ?></th>
+            <th style="width:110px;">ISBN</th>
+            <th style="width:90px;"><?= rsyi_lib_t('الموجود', 'In Stock') ?></th>
+            <th style="width:90px;"><?= rsyi_lib_t('المطلوب', 'Required') ?></th>
+            <th style="width:120px;"><?= rsyi_lib_t('السعر التقديري', 'Est. Price') ?></th>
+            <th style="width:110px;"><?= rsyi_lib_t('الإجمالي', 'Total') ?></th>
+        </tr></thead>
+        <tbody id="pr-print-body"></tbody>
+        <tfoot><tr>
+            <td colspan="5" style="text-align:end;font-weight:700;padding:8px 10px;"><?= rsyi_lib_t('الإجمالي الكلي', 'Grand Total') ?></td>
+            <td style="font-weight:700;padding:8px 10px;" id="pr-print-grand-total">0.00</td>
+        </tr></tfoot>
+    </table>
+    <p style="margin-top:16px;">
+        <button class="button button-primary" id="btn-do-pr-print">🖨 <?= rsyi_lib_t('طباعة', 'Print') ?></button>
+        <button class="button rsyi-modal-close" data-modal="pr-print-modal" style="margin-<?= $_lib_en?'left':'right' ?>:8px;"><?= rsyi_lib_t('إلغاء', 'Cancel') ?></button>
+    </p>
 </div></div>
 
 <style>
@@ -1124,6 +1156,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                 }
                 if(canManage&&p.status==='approved') acts+='<button class="button button-small btn-convert-pr" data-id="'+p.id+'" style="color:blue;">'+L.convert_pr+'</button> ';
                 if(canManage&&['pending','rejected'].includes(p.status)) acts+='<button class="button button-small btn-del-pr" data-id="'+p.id+'">'+L.delete+'</button>';
+                acts+=' <button class="button button-small btn-print-pr" data-id="'+p.id+'">🖨</button>';
                 html+='<tr><td>'+p.request_number+'</td><td>'+statusBadge(p.status)+'</td><td>'+(p.requested_by_name||'')+'</td>'+
                     '<td>'+(p.created_at||'').substr(0,10)+'</td><td>'+acts+'</td></tr>';
             });
@@ -1278,6 +1311,129 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         html+='</tbody></table>';
         $('#report-output').html(html);
     }
+
+    // ═══ PURCHASE REQUEST PRINT ══════════════════════════════════════════════
+    var prPrintData=null;
+    $(document).on('click','.btn-print-pr',function(){
+        var id=$(this).data('id');
+        post('rsyi_lib_get_pr_print_data',{pr_id:id},function(r){
+            if(!r.success){ alert(L.alert_fetch_err); return; }
+            prPrintData=r.data;
+            var pr=r.data.pr, items=r.data.items||[];
+            // Header info
+            var hdr='<strong><?= rsyi_lib_t('رقم الطلب','Request No.') ?>:</strong> '+pr.request_number+
+                ' &nbsp;|&nbsp; <strong><?= rsyi_lib_t('التاريخ','Date') ?>:</strong> '+(pr.created_at||'').substr(0,10)+
+                (pr.requested_by_name?' &nbsp;|&nbsp; <strong><?= rsyi_lib_t('بواسطة','By') ?>:</strong> '+pr.requested_by_name:'')+
+                (pr.notes?' &nbsp;|&nbsp; <strong><?= rsyi_lib_t('ملاحظات','Notes') ?>:</strong> '+pr.notes:'');
+            $('#pr-print-header').html(hdr);
+            // Build editable rows
+            var tbody='';
+            items.forEach(function(i,idx){
+                var lp=parseFloat(i.last_purchase_price||0);
+                var qty=parseInt(i.quantity||0);
+                tbody+='<tr>'+
+                    '<td>'+(i.title_ar||i.title_en||'—')+'</td>'+
+                    '<td>'+(i.isbn||'—')+'</td>'+
+                    '<td>'+parseInt(i.current_stock||0)+'</td>'+
+                    '<td>'+qty+'</td>'+
+                    '<td><input type="number" class="pr-est-price small-text" data-idx="'+idx+'" data-qty="'+qty+'" value="'+lp.toFixed(2)+'" min="0" step="0.01" style="width:90px;"></td>'+
+                    '<td class="pr-line-total">'+( qty*lp ).toFixed(2)+'</td>'+
+                    '</tr>';
+            });
+            $('#pr-print-body').html(tbody);
+            calcPrPrintTotal();
+            openModal('pr-print-modal');
+        });
+    });
+    function calcPrPrintTotal(){
+        var grand=0;
+        $('#pr-print-body tr').each(function(){
+            var price=parseFloat($(this).find('.pr-est-price').val())||0;
+            var qty=parseInt($(this).find('.pr-est-price').data('qty'))||0;
+            var line=qty*price;
+            grand+=line;
+            $(this).find('.pr-line-total').text(line.toFixed(2));
+        });
+        $('#pr-print-grand-total').text(grand.toFixed(2));
+    }
+    $(document).on('input','.pr-est-price',calcPrPrintTotal);
+
+    $('#btn-do-pr-print').on('click',function(){
+        if(!prPrintData) return;
+        var pr=prPrintData.pr, items=prPrintData.items||[];
+        var pdir='<?= $_lib_en ? 'ltr' : 'rtl' ?>';
+        var logo=prPrintData.logo?'<img src="'+prPrintData.logo+'" style="max-height:70px;">':'';
+        var instName=prPrintData.institute_name||'';
+        var rows='', grand=0;
+        $('#pr-print-body tr').each(function(idx){
+            var price=parseFloat($(this).find('.pr-est-price').val())||0;
+            var qty=parseInt($(this).find('.pr-est-price').data('qty'))||0;
+            var stock=parseInt($(this).find('td:eq(2)').text())||0;
+            var isbn=$(this).find('td:eq(1)').text();
+            var title=$(this).find('td:eq(0)').text();
+            var line=qty*price; grand+=line;
+            rows+='<tr><td>'+title+'</td><td>'+isbn+'</td><td>'+stock+'</td><td>'+qty+'</td><td>'+price.toFixed(2)+'</td><td>'+line.toFixed(2)+'</td></tr>';
+        });
+        var html='<!DOCTYPE html><html dir="'+pdir+'"><head><meta charset="UTF-8">'+
+            '<title><?= rsyi_lib_t('طلب عرض السعر','Purchase Request') ?> - '+pr.request_number+'</title>'+
+            '<style>body{font-family:Arial,sans-serif;direction:'+pdir+';padding:20px;}'+
+            'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #999;padding:6px 10px;text-align:'+(pdir==='rtl'?'right':'left')+';}thead{background:#eee;}'+
+            '.sig{display:inline-block;width:200px;border-top:1px solid #333;margin-top:60px;text-align:center;margin:0 20px;}</style></head><body>'+
+            '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+instName+'</h2>'+
+            '<h3><?= rsyi_lib_t('طلب عرض السعر','Request for Quotation') ?></h3></div>'+
+            '<table style="margin-bottom:16px;border:none;">'+
+            '<tr><td style="border:none;"><strong><?= rsyi_lib_t('رقم الطلب','Request No.') ?>:</strong> '+pr.request_number+'</td>'+
+            '<td style="border:none;"><strong><?= rsyi_lib_t('التاريخ','Date') ?>:</strong> '+(pr.created_at||'').substr(0,10)+'</td></tr>'+
+            (pr.requested_by_name?'<tr><td colspan="2" style="border:none;"><strong><?= rsyi_lib_t('طالب بواسطة','Requested By') ?>:</strong> '+pr.requested_by_name+'</td></tr>':'')+
+            (pr.notes?'<tr><td colspan="2" style="border:none;"><strong><?= rsyi_lib_t('ملاحظات','Notes') ?>:</strong> '+pr.notes+'</td></tr>':'')+
+            '</table>'+
+            '<table><thead><tr>'+
+            '<th><?= rsyi_lib_t('الصنف','Item') ?></th><th>ISBN</th>'+
+            '<th><?= rsyi_lib_t('الموجود','In Stock') ?></th>'+
+            '<th><?= rsyi_lib_t('المطلوب','Required') ?></th>'+
+            '<th><?= rsyi_lib_t('السعر التقديري','Est. Price') ?></th>'+
+            '<th><?= rsyi_lib_t('الإجمالي','Total') ?></th>'+
+            '</tr></thead><tbody>'+rows+
+            '<tr><td colspan="5" style="text-align:end;font-weight:700;"><?= rsyi_lib_t('الإجمالي الكلي','Grand Total') ?></td>'+
+            '<td style="font-weight:700;">'+grand.toFixed(2)+'</td></tr>'+
+            '</tbody></table>'+
+            '<div style="margin-top:50px;display:flex;justify-content:space-around;">'+
+            '<div class="sig"><?= rsyi_lib_t('كبير المدربين','Chief Instructor') ?></div>'+
+            '<div class="sig"><?= rsyi_lib_t('مدير الشؤون','Affairs Manager') ?></div>'+
+            '</div></body></html>';
+        var win=window.open('','_blank'); win.document.write(html); win.document.close(); win.print();
+    });
+
+    // ═══ REPORTS PRINT ═══════════════════════════════════════════════════════
+    $('#btn-print-report').on('click',function(){
+        var table=$('#report-output').html();
+        if(!table||!$.trim(table)){ alert('<?= rsyi_lib_t('لا توجد بيانات للطباعة','No data to print') ?>'); return; }
+        var pdir='<?= $_lib_en ? 'ltr' : 'rtl' ?>';
+        var logo='<?php echo esc_js(get_option('rsyi_logo_url','')); ?>';
+        var instName='<?php echo esc_js(get_option('rsyi_institute_name','Red Sea Yacht Institute')); ?>';
+        var reportTitles={
+            stock:'<?= rsyi_lib_t('تقرير الرصيد الحالي','Current Stock Report') ?>',
+            movement:'<?= rsyi_lib_t('تقرير حركة كتاب','Book Movement Report') ?>',
+            low_stock:'<?= rsyi_lib_t('تقرير على وشك النفاد','Low Stock Report') ?>',
+            zero_stock:'<?= rsyi_lib_t('تقرير رصيد صفري','Zero Stock Report') ?>',
+            cohort_withdrawal:'<?= rsyi_lib_t('تقرير صرف مجموعة','Cohort Withdrawal Report') ?>',
+            supplier:'<?= rsyi_lib_t('تقرير مورد','Supplier Report') ?>'
+        };
+        var title=reportTitles[currentReport]||'<?= rsyi_lib_t('تقرير','Report') ?>';
+        var now=new Date().toISOString().substr(0,10);
+        var logoHtml=logo?'<img src="'+logo+'" style="max-height:60px;">':'';
+        var html='<!DOCTYPE html><html dir="'+pdir+'"><head><meta charset="UTF-8"><title>'+title+'</title>'+
+            '<style>body{font-family:Arial,sans-serif;direction:'+pdir+';padding:20px;}'+
+            'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #999;padding:6px 10px;font-size:12px;text-align:'+(pdir==='rtl'?'right':'left')+';}'+
+            'thead{background:#eee;}.stock-ok td{background:#f0fff0;}.stock-low td{background:#fff8e1;}.stock-zero td{background:#ffe8e8;}'+
+            '</style></head><body>'+
+            '<div style="text-align:center;margin-bottom:16px;">'+logoHtml+
+            '<h2 style="margin:6px 0;">'+instName+'</h2><h3 style="margin:4px 0;">'+title+'</h3>'+
+            '<p style="color:#666;font-size:12px;margin:0;"><?= rsyi_lib_t('تاريخ الطباعة','Print Date') ?>: '+now+'</p></div>'+
+            table+
+            '</body></html>';
+        var win=window.open('','_blank'); win.document.write(html); win.document.close(); win.print();
+    });
 
     // ═══ PRINT ════════════════════════════════════════════════════════════════
     function printOrder(type,id){
