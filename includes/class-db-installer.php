@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.3.8';
+    const DB_VERSION        = '1.3.9';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -730,6 +730,7 @@ class DB_Installer {
                 request_id BIGINT UNSIGNED NOT NULL,
                 book_id    BIGINT UNSIGNED NOT NULL,
                 quantity   INT UNSIGNED    NOT NULL DEFAULT 1,
+                unit_price DECIMAL(10,2)   NOT NULL DEFAULT 0.00,
                 notes      TEXT            DEFAULT NULL,
                 PRIMARY KEY (id),
                 KEY idx_pr_item_req  (request_id),

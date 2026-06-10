@@ -664,8 +664,14 @@ class Library_Orders {
             $id = $wpdb->insert_id;
             if ( ! $id ) { wp_send_json_error( [ 'message' => 'فشل إنشاء الطلب / Failed to create PR' ] ); }
         }
+        $saved = 0;
         foreach ( $items as $item ) {
-            $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_request_items', array_merge( $item, [ 'request_id' => $id ] ) );
+            if ( $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_request_items', array_merge( $item, [ 'request_id' => $id ] ) ) ) {
+                $saved++;
+            }
+        }
+        if ( ! $saved ) {
+            wp_send_json_error( [ 'message' => 'فشل حفظ عناصر الطلب — ' . $wpdb->last_error . ' / Failed to save items. Run DB migration.' ] );
         }
         wp_send_json_success( [ 'message' => 'تم الحفظ / Saved', 'id' => $id ] );
     }
