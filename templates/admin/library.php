@@ -1495,9 +1495,8 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                     if(tax>0)  netPrice*=(1+tax/100);
                     var line=qty*netPrice;
                     total+=line;
-                    var discTax=(disc||tax)?(disc+'%'+(tax?'/'+tax+'%':'')):'—';
                     rows+='<tr><td>'+(i.title_ar||i.title_en||'')+'</td><td>'+(i.isbn||'—')+'</td><td>'+qty+'</td>'+
-                          '<td>'+price.toFixed(2)+'</td><td>'+discTax+'</td><td>'+netPrice.toFixed(2)+'</td><td>'+line.toFixed(2)+'</td></tr>';
+                          '<td>'+price.toFixed(2)+'</td><td>'+(disc?disc+'%':'—')+'</td><td>'+(tax?tax+'%':'—')+'</td><td>'+netPrice.toFixed(2)+'</td><td>'+line.toFixed(2)+'</td></tr>';
                 });
                 var ciName=d.chief_instructor_name||'';
                 var ciSig=d.chief_instructor_sig?'<img src="'+d.chief_instructor_sig+'" style="max-height:60px;display:block;margin:0 auto 6px;">':'';
@@ -1517,10 +1516,11 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                     '<table><thead><tr>'+
                     '<th>'+L.print_book+'</th><th>ISBN</th><th>'+L.rpt_qty+'</th>'+
                     '<th><?= rsyi_lib_t('سعر الوحدة','Unit Price') ?></th>'+
-                    '<th><?= rsyi_lib_t('خصم%/ضريبة%','Disc%/Tax%') ?></th>'+
+                    '<th><?= rsyi_lib_t('خصم%','Disc%') ?></th>'+
+                    '<th><?= rsyi_lib_t('ضريبة%','Tax%') ?></th>'+
                     '<th><?= rsyi_lib_t('الصافي','Net Price') ?></th>'+
                     '<th>'+L.print_total+'</th></tr></thead><tbody>'+rows+
-                    '<tr><td colspan="6"><strong>'+L.print_total+'</strong></td><td><strong>'+total.toFixed(2)+'</strong></td></tr>'+
+                    '<tr><td colspan="7"><strong>'+L.print_total+'</strong></td><td><strong>'+total.toFixed(2)+'</strong></td></tr>'+
                     '</tbody></table>'+sigBlock+
                     '</body></html>';
                 var win=window.open('','_blank'); win.document.write(html); win.document.close(); win.print();
