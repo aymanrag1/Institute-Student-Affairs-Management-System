@@ -951,16 +951,99 @@ class Library_Orders {
         $notify_email = get_option( 'rsyi_notify_email', '' );
         if ( $notify_email ) { $emails[] = $notify_email; }
 
-        // Add senior naval trainers + dean emails
         $users = get_users( [ 'role__in' => [ 'rsyi_senior_naval_trainer', 'rsyi_dean' ], 'fields' => [ 'user_email' ] ] );
         foreach ( $users as $u ) { $emails[] = $u->user_email; }
         $emails = array_unique( array_filter( $emails ) );
         if ( empty( $emails ) ) return;
 
-        $subject = 'إذن صرف جديد / New Withdrawal Order: ' . ( $order->order_number ?? '' );
-        $body    = "تم إنشاء إذن صرف جديد يحتاج إلى اعتمادكم.\n\nA new withdrawal order has been created and requires your approval.\n\nOrder: " . ( $order->order_number ?? '' );
+        global $wpdb;
+        $items = $wpdb->get_results( $wpdb->prepare(
+            "SELECT i.quantity, b.title_ar, b.title_en, b.isbn
+             FROM {$wpdb->prefix}rsyi_lib_withdrawal_order_items i
+             LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id = i.book_id
+             WHERE i.order_id = %d", $order->id
+        ) ) ?: [];
+
+        $order_num  = esc_html( $order->order_number ?? '' );
+        $date       = date_i18n( 'd/m/Y H:i', strtotime( $order->created_at ?? 'now' ) );
+        $cohort     = esc_html( $order->cohort_name ?? '' );
+        $notes      = esc_html( $order->notes ?? '' );
+        $admin_url  = admin_url( 'admin.php?page=rsyi-library' );
+        $inst_name  = esc_html( get_option( 'rsyi_institute_name', 'Red Sea Yachting Institute' ) );
+
+        $items_rows_html = '';
+        $items_rows_text = '';
+        foreach ( $items as $item ) {
+            $title = esc_html( $item->title_ar ?: $item->title_en ?: '' );
+            $isbn  = esc_html( $item->isbn ?: '—' );
+            $qty   = (int) $item->quantity;
+            $items_rows_html .= "<tr>
+                <td style='padding:7px 10px;border:1px solid #ddd;'>{$title}</td>
+                <td style='padding:7px 10px;border:1px solid #ddd;text-align:center;'>{$isbn}</td>
+                <td style='padding:7px 10px;border:1px solid #ddd;text-align:center;'>{$qty}</td>
+            </tr>";
+            $items_rows_text .= "  - {$title}  (ISBN: {$isbn})  × {$qty}\n";
+        }
+
+        $subject = "إذن صرف جديد / New Withdrawal Order: {$order_num}";
+
+        $items_table_html = $items_rows_html ? "
+        <h3 style='margin:20px 0 8px;font-size:14px;color:#555;'>الأصناف / Items</h3>
+        <table style='width:100%;border-collapse:collapse;font-size:13px;'>
+          <thead><tr style='background:#f0f4f8;'>
+            <th style='padding:7px 10px;border:1px solid #ddd;text-align:right;'>الصنف / Item</th>
+            <th style='padding:7px 10px;border:1px solid #ddd;'>ISBN</th>
+            <th style='padding:7px 10px;border:1px solid #ddd;width:70px;'>الكمية</th>
+          </tr></thead>
+          <tbody>{$items_rows_html}</tbody>
+        </table>" : '';
+
+        $cohort_row  = $cohort ? "<tr><td style='padding:6px 12px;background:#fafafa;font-weight:600;width:160px;'>المجموعة / Cohort</td><td style='padding:6px 12px;border-bottom:1px solid #eee;'>{$cohort}</td></tr>" : '';
+        $notes_row   = $notes  ? "<tr><td style='padding:6px 12px;background:#fafafa;font-weight:600;'>ملاحظات / Notes</td><td style='padding:6px 12px;border-bottom:1px solid #eee;'>{$notes}</td></tr>" : '';
+
+        $html_body = "<!DOCTYPE html><html dir='rtl'><head><meta charset='UTF-8'></head>
+<body style='font-family:Arial,sans-serif;background:#f4f4f4;padding:24px;'>
+<div style='max-width:620px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1);'>
+  <div style='background:#0073aa;padding:18px 24px;text-align:center;'>
+    <h2 style='margin:0;color:#fff;font-size:17px;'>⚓ {$inst_name}</h2>
+    <p style='margin:6px 0 0;color:#cce4f4;font-size:13px;'>إذن صرف جديد / New Withdrawal Order</p>
+  </div>
+  <div style='padding:24px;'>
+    <p style='margin:0 0 18px;font-size:14px;line-height:1.7;'>
+      تم إنشاء إذن صرف جديد يحتاج إلى <strong>اعتمادكم</strong>.<br>
+      <span style='color:#666;'>A new withdrawal order has been created and requires your approval.</span>
+    </p>
+    <table style='width:100%;border-collapse:collapse;font-size:14px;margin-bottom:4px;'>
+      <tr><td style='padding:6px 12px;background:#fafafa;font-weight:600;width:160px;'>رقم الإذن / Order No.</td><td style='padding:6px 12px;border-bottom:1px solid #eee;'><strong>{$order_num}</strong></td></tr>
+      <tr><td style='padding:6px 12px;background:#fafafa;font-weight:600;'>التاريخ / Date</td><td style='padding:6px 12px;border-bottom:1px solid #eee;'>{$date}</td></tr>
+      {$cohort_row}{$notes_row}
+    </table>
+    {$items_table_html}
+    <div style='margin-top:28px;text-align:center;'>
+      <a href='{$admin_url}' style='background:#0073aa;color:#fff;padding:13px 32px;text-decoration:none;border-radius:5px;font-size:14px;font-weight:bold;display:inline-block;'>
+        👁 عرض الإذن واعتماده / View &amp; Approve
+      </a>
+    </div>
+    <p style='margin-top:20px;font-size:11px;color:#aaa;text-align:center;'>
+      {$admin_url}
+    </p>
+  </div>
+</div>
+</body></html>";
+
+        $text_body = "إذن صرف جديد / New Withdrawal Order: {$order_num}\n"
+            . str_repeat( '-', 40 ) . "\n"
+            . "رقم الإذن: {$order_num}\n"
+            . "التاريخ:   {$date}\n"
+            . ( $cohort ? "المجموعة: {$cohort}\n" : '' )
+            . ( $notes  ? "ملاحظات:  {$notes}\n"  : '' )
+            . ( $items_rows_text ? "\nالأصناف:\n{$items_rows_text}" : '' )
+            . "\n" . str_repeat( '-', 40 ) . "\n"
+            . "رابط الاعتماد:\n{$admin_url}\n";
+
+        $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
         foreach ( $emails as $email ) {
-            wp_mail( $email, $subject, $body );
+            wp_mail( $email, $subject, $html_body, $headers );
         }
     }
 
