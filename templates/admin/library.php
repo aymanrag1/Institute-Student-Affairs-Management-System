@@ -435,18 +435,24 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
 
 <!-- PR Modal -->
 <div id="pr-modal" class="rsyi-modal-overlay" dir="<?= $_dir ?>" style="display:none;">
-<div class="rsyi-modal-box" style="max-width:750px;max-height:90vh;overflow-y:auto;">
+<div class="rsyi-modal-box" style="max-width:900px;max-height:90vh;overflow-y:auto;">
     <h2 id="pr-title" style="margin-top:0;"><?= rsyi_lib_t('طلب شراء', 'Purchase Request') ?></h2>
     <input type="hidden" id="pr-id" value="0">
-    <table class="form-table">
-        <tr><th><?= rsyi_lib_t('ملاحظات', 'Notes') ?></th><td><textarea id="pr-notes" rows="2" class="large-text"></textarea></td></tr>
+    <table class="form-table" style="margin-bottom:8px;">
+        <tr><th style="width:100px;"><?= rsyi_lib_t('ملاحظات', 'Notes') ?></th><td><textarea id="pr-notes" rows="1" class="large-text" style="height:36px;resize:vertical;"></textarea></td></tr>
     </table>
-    <div style="margin:12px 0;">
+    <div style="margin:8px 0;">
         <strong><?= rsyi_lib_t('الكتب', 'Items') ?>:</strong>
         <button type="button" class="button button-small" id="btn-pr-add-row">+ <?= rsyi_lib_t('إضافة سطر', 'Add Row') ?></button>
     </div>
-    <table class="wp-list-table widefat" id="pr-items-table" style="direction:<?= $_dir ?>;">
-        <thead><tr><th><?= rsyi_lib_t('الكتاب', 'Book') ?></th><th style="width:80px;"><?= rsyi_lib_t('الكمية', 'Qty') ?></th><th style="width:130px;"><?= rsyi_lib_t('السعر التقديري', 'Est. Price') ?></th><th style="width:120px;"><?= rsyi_lib_t('ملاحظة', 'Note') ?></th><th style="width:40px;"></th></tr></thead>
+    <table class="wp-list-table widefat" id="pr-items-table" style="direction:<?= $_dir ?>;table-layout:fixed;width:100%;">
+        <thead><tr>
+            <th style="width:50%;"><?= rsyi_lib_t('الكتاب', 'Book') ?></th>
+            <th style="width:70px;"><?= rsyi_lib_t('الكمية', 'Qty') ?></th>
+            <th style="width:110px;"><?= rsyi_lib_t('السعر التقديري', 'Est. Price') ?></th>
+            <th style="width:110px;"><?= rsyi_lib_t('ملاحظة', 'Note') ?></th>
+            <th style="width:36px;"></th>
+        </tr></thead>
         <tbody id="pr-items-body"></tbody>
     </table>
     <p style="margin-top:16px;">
@@ -683,15 +689,30 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         var map={draft:'<?= rsyi_lib_t('مسودة', 'Draft') ?>',pending:'<?= rsyi_lib_t('في الانتظار', 'Pending') ?>',approved:'<?= rsyi_lib_t('معتمد', 'Approved') ?>',completed:'<?= rsyi_lib_t('مكتمل', 'Completed') ?>',rejected:'<?= rsyi_lib_t('مرفوض', 'Rejected') ?>'};
         return '<span class="status-'+(s||'')+'">'+( map[s]||s )+'</span>';
     }
-    function buildBookSelect(val){
-        var html='<option value=""><?= rsyi_lib_t('-- اختر كتاباً --', '-- Select a Book --') ?></option>';
+    function buildBooksOptions(term){
+        var opts='<option value=""><?= rsyi_lib_t('-- اختر كتاباً --', '-- Select a Book --') ?></option>';
         booksCache.forEach(function(b){
+            if(term){
+                var hay=((b.title_ar||'')+(b.title_en||'')+(b.isbn||'')).toLowerCase();
+                if(hay.indexOf(term)<0) return;
+            }
             var label=(b.title_ar||b.title_en)+(b.isbn?' ['+b.isbn+']':'')+' (<?= rsyi_lib_t('رصيد', 'Stock') ?>: '+b.current_stock+')';
-            html+='<option value="'+b.id+'" data-stock="'+b.current_stock+'">'+label+'</option>';
+            opts+='<option value="'+b.id+'" data-stock="'+b.current_stock+'">'+label+'</option>';
         });
-        var s=$('<select class="book-sel" style="width:100%;">').html(html);
-        if(val) s.val(val);
-        return s;
+        return opts;
+    }
+    function buildBookSelect(val){
+        var searchInput=$('<input type="text" class="book-filter-input" placeholder="🔍 <?= rsyi_lib_t('ابحث باسم أو كود…','Search by name or code…') ?>" style="width:100%;margin-bottom:3px;padding:4px 6px;border:1px solid #8c8f94;border-radius:2px;box-sizing:border-box;font-size:12px;">');
+        var sel=$('<select class="book-sel" style="width:100%;">').html(buildBooksOptions(''));
+        if(val) sel.val(val);
+        searchInput.on('input',function(){
+            var term=$(this).val().toLowerCase().trim();
+            var cur=sel.val();
+            sel.html(buildBooksOptions(term));
+            if(cur) sel.val(cur);
+        });
+        var wrap=$('<div class="book-sel-wrap" style="display:flex;flex-direction:column;width:100%;">').append(searchInput,sel);
+        return wrap;
     }
     function calcAoTotal(){
         var total=0;
@@ -977,7 +998,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             $('<td>').append(stuSel),
             $('<td>').append($('<button type="button" class="button button-small wd-del-row">×</button>'))
         );
-        sel.on('change',function(){ row.find('.wd-stock-cell').text($(this).find(':selected').data('stock')||0); });
+        sel.find('.book-sel').on('change',function(){ row.find('.wd-stock-cell').text($(this).find(':selected').data('stock')||0); });
         row.find('.wd-del-row').on('click',function(){ $(this).closest('tr').remove(); });
         $('#wd-items-body').append(row);
     }
@@ -1195,7 +1216,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             $('<td>').append($('<button type="button" class="button button-small pr-del-row">×</button>'))
         );
         // Auto-fill price when book changes
-        sel.on('change',function(){
+        sel.find('.book-sel').on('change',function(){
             var bookId=$(this).val();
             var cached=booksCache.find(function(b){ return b.id==bookId; });
             if(cached) row.find('.pr-price').val(parseFloat(cached.last_price||0).toFixed(2));
