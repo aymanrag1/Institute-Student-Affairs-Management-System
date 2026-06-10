@@ -531,7 +531,7 @@ class Library_Orders {
     }
 
     static function handle_get_pr(): void {
-        self::check_view();
+        self::check_manage();
         global $wpdb;
         $id  = intval( $_POST['pr_id'] ?? 0 );
         $pr  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}rsyi_lib_purchase_requests WHERE id=%d", $id ) );
@@ -575,11 +575,16 @@ class Library_Orders {
              WHERE i.request_id=%d", $id
         ) );
 
+        $ci_users = get_users( [ 'role' => 'rsyi_senior_naval_trainer', 'number' => 1, 'fields' => [ 'ID', 'display_name' ] ] );
+        $ci_id    = $ci_users ? (int) $ci_users[0]->ID : 0;
         wp_send_json_success( [
-            'pr'             => $pr,
-            'items'          => $items ?: [],
-            'logo'           => get_option( 'rsyi_logo_url', '' ),
-            'institute_name' => get_option( 'rsyi_institute_name', 'Red Sea Yacht Institute' ),
+            'pr'                    => $pr,
+            'items'                 => $items ?: [],
+            'logo'                  => get_option( 'rsyi_logo_url', '' ),
+            'institute_name'        => get_option( 'rsyi_institute_name', 'Red Sea Yachting Institute' ),
+            'institute_name_en'     => get_option( 'rsyi_institute_name_en', 'Red Sea Yachting Institute' ),
+            'chief_instructor_name' => $ci_id ? get_userdata( $ci_id )->display_name : '',
+            'chief_instructor_sig'  => $ci_id ? get_user_meta( $ci_id, 'rsyi_chief_signature', true ) : '',
         ] );
     }
 
@@ -607,11 +612,12 @@ class Library_Orders {
             $wpdb->update( $wpdb->prefix . 'rsyi_lib_purchase_requests', [ 'notes' => $notes, 'updated_at' => current_time( 'mysql' ) ], [ 'id' => $id ] );
         } else {
             $req_num = Library_Transactions::generate_order_number( 'PR' );
+            $ci_id   = self::get_chief_instructor_id();
             $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_requests', [
                 'request_number' => $req_num,
                 'status'         => 'pending',
                 'notes'          => $notes,
-                'requested_by'   => $uid,
+                'requested_by'   => $ci_id ?: $uid,
                 'created_at'     => current_time( 'mysql' ),
             ] );
             $id = $wpdb->insert_id;
@@ -810,21 +816,25 @@ class Library_Orders {
                      FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
                      JOIN {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id=aoi.order_id
                      WHERE aoi.book_id=i.book_id
-                     ORDER BY ao.created_at DESC LIMIT 1) AS last_purchase_price
+                     ORDER BY ao.created_at DESC LIMIT 1) AS last_purchase_price,
+                    (SELECT aoi.tax_rate
+                     FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
+                     JOIN {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id=aoi.order_id
+                     WHERE aoi.book_id=i.book_id
+                     ORDER BY ao.created_at DESC LIMIT 1) AS last_tax_rate,
+                    (SELECT aoi.discount_rate
+                     FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
+                     JOIN {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id=aoi.order_id
+                     WHERE aoi.book_id=i.book_id
+                     ORDER BY ao.created_at DESC LIMIT 1) AS last_discount_rate
                  FROM {$wpdb->prefix}rsyi_lib_withdrawal_order_items i
                  LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id WHERE i.order_id=%d", $id
             ) );
-            // Chief Instructor info for signature
-            $approved_by_id = intval( $data['order']->approved_by ?? 0 );
-            if ( ! $approved_by_id ) {
-                $ci_users = get_users( [ 'role' => 'rsyi_senior_naval_trainer', 'number' => 1, 'fields' => [ 'ID', 'display_name' ] ] );
-                if ( $ci_users ) { $approved_by_id = (int) $ci_users[0]->ID; }
-            }
-            $data['chief_instructor_name'] = $data['order']->approved_by_name
-                ?? ( $approved_by_id ? get_userdata( $approved_by_id )->display_name : '' );
-            $data['chief_instructor_sig']  = $approved_by_id
-                ? get_user_meta( $approved_by_id, 'rsyi_chief_signature', true )
-                : '';
+            // Always get Chief Instructor from role
+            $ci_users = get_users( [ 'role' => 'rsyi_senior_naval_trainer', 'number' => 1, 'fields' => [ 'ID', 'display_name' ] ] );
+            $ci_id    = $ci_users ? (int) $ci_users[0]->ID : 0;
+            $data['chief_instructor_name'] = $ci_id ? get_userdata( $ci_id )->display_name : '';
+            $data['chief_instructor_sig']  = $ci_id ? get_user_meta( $ci_id, 'rsyi_chief_signature', true ) : '';
         } elseif ( $type === 'return' ) {
             $data['order'] = $wpdb->get_row( $wpdb->prepare(
                 "SELECT o.*, c.name AS cohort_name, u.display_name AS created_by_name
@@ -837,8 +847,9 @@ class Library_Orders {
                  LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id WHERE i.order_id=%d", $id
             ) );
         }
-        $data['logo'] = get_option( 'rsyi_logo_url', '' );
-        $data['institute_name'] = get_option( 'rsyi_institute_name', 'Red Sea Yacht Institute' );
+        $data['logo']              = get_option( 'rsyi_logo_url', '' );
+        $data['institute_name']    = get_option( 'rsyi_institute_name', 'Red Sea Yachting Institute' );
+        $data['institute_name_en'] = get_option( 'rsyi_institute_name_en', 'Red Sea Yachting Institute' );
         wp_send_json_success( $data );
     }
 
@@ -895,12 +906,13 @@ class Library_Orders {
             wp_send_json_error( [ 'message' => 'لا توجد عناصر تحتاج لشراء / No items need purchasing' ] );
         }
         $uid     = get_current_user_id();
+        $ci_id   = self::get_chief_instructor_id();
         $req_num = Library_Transactions::generate_order_number( 'PR' );
         $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_requests', [
             'request_number' => $req_num,
             'status'         => 'pending',
             'notes'          => 'Auto-generated / توليد تلقائي',
-            'requested_by'   => $uid,
+            'requested_by'   => $ci_id ?: $uid,
             'created_at'     => current_time( 'mysql' ),
         ] );
         $id = $wpdb->insert_id;
@@ -913,6 +925,11 @@ class Library_Orders {
             'id'      => $id,
             'count'   => count( $items ),
         ] );
+    }
+
+    private static function get_chief_instructor_id(): int {
+        $users = get_users( [ 'role' => 'rsyi_senior_naval_trainer', 'number' => 1, 'fields' => [ 'ID' ] ] );
+        return $users ? (int) $users[0]->ID : 0;
     }
 
     private static function check_manage(): void {

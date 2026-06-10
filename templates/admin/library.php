@@ -686,7 +686,10 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
     }
     function buildBookSelect(val){
         var html='<option value=""><?= rsyi_lib_t('-- اختر كتاباً --', '-- Select a Book --') ?></option>';
-        booksCache.forEach(function(b){ html+='<option value="'+b.id+'" data-stock="'+b.current_stock+'">'+(b.title_ar||b.title_en)+' (<?= rsyi_lib_t('رصيد', 'Stock') ?>: '+b.current_stock+')</option>'; });
+        booksCache.forEach(function(b){
+            var label=(b.title_ar||b.title_en)+(b.isbn?' ['+b.isbn+']':'')+' (<?= rsyi_lib_t('رصيد', 'Stock') ?>: '+b.current_stock+')';
+            html+='<option value="'+b.id+'" data-stock="'+b.current_stock+'">'+label+'</option>';
+        });
         var s=$('<select class="book-sel" style="width:100%;">').html(html);
         if(val) s.val(val);
         return s;
@@ -850,7 +853,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                     '<td>'+o.total_quantity+'</td><td>'+parseFloat(o.total_value||0).toFixed(2)+'</td><td>'+
                     (canManage?'<button class="button button-small btn-edit-ao" data-id="'+o.id+'">'+L.edit+'</button> '+
                     '<button class="button button-small btn-del-ao" data-id="'+o.id+'">'+L.delete+'</button> ':'')+
-                    '<button class="button button-small btn-print-ao" data-id="'+o.id+'">🖨</button></td></tr>';
+                    '<button class="button button-small btn-print-ao" data-id="'+o.id+'">🖨 <?= rsyi_lib_t('طباعة', 'Print') ?></button></td></tr>';
             });
             $('#add-orders-list').html(html);
         });
@@ -922,7 +925,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                           '<button class="button button-small btn-del-wd" data-id="'+o.id+'">'+L.delete+'</button> ';
                 }
                 if(o.status!=='draft'){
-                    acts+='<button class="button button-small btn-view-wd" data-id="'+o.id+'">👁</button> ';
+                    acts+='<button class="button button-small btn-view-wd" data-id="'+o.id+'">👁 Preview</button> ';
                 }
                 if(canApproveWd&&o.status==='pending'){
                     acts+='<button class="button button-small btn-approve-wd" data-id="'+o.id+'" style="color:green;">'+L.approve+'</button> '+
@@ -932,7 +935,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                     acts+='<button class="button button-small btn-complete-wd" data-id="'+o.id+'" style="color:blue;">'+L.complete_wd+'</button> ';
                 }
                 if(['approved','completed'].includes(o.status)){
-                    acts+='<button class="button button-small btn-print-wd" data-id="'+o.id+'">🖨</button>';
+                    acts+='<button class="button button-small btn-print-wd" data-id="'+o.id+'">🖨 <?= rsyi_lib_t('طباعة', 'Print') ?></button>';
                 }
                 html+='<tr><td>'+o.order_number+'</td><td>'+who+'</td><td>'+(o.order_type==='custody'?L.custody_type:L.normal_type)+'</td>'+
                     '<td>'+statusBadge(o.status)+'</td><td>'+(o.created_by_name||'')+'</td>'+
@@ -1157,7 +1160,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                 }
                 if(canManage&&p.status==='approved') acts+='<button class="button button-small btn-convert-pr" data-id="'+p.id+'" style="color:blue;">'+L.convert_pr+'</button> ';
                 if(canManage&&['pending','rejected'].includes(p.status)) acts+='<button class="button button-small btn-del-pr" data-id="'+p.id+'">'+L.delete+'</button>';
-                acts+=' <button class="button button-small btn-print-pr" data-id="'+p.id+'">🖨</button>';
+                acts+=' <button class="button button-small btn-print-pr" data-id="'+p.id+'">🖨 Preview</button>';
                 html+='<tr><td>'+p.request_number+'</td><td>'+statusBadge(p.status)+'</td><td>'+(p.requested_by_name||'')+'</td>'+
                     '<td>'+(p.created_at||'').substr(0,10)+'</td><td>'+acts+'</td></tr>';
             });
@@ -1378,7 +1381,6 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         var pr=prPrintData.pr, items=prPrintData.items||[];
         var pdir='<?= $_lib_en ? 'ltr' : 'rtl' ?>';
         var logo=prPrintData.logo?'<img src="'+prPrintData.logo+'" style="max-height:70px;">':'';
-        var instName=prPrintData.institute_name||'';
         var rows='', grand=0;
         $('#pr-print-body tr').each(function(idx){
             var price=parseFloat($(this).find('.pr-est-price').val())||0;
@@ -1389,12 +1391,15 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             var line=qty*price; grand+=line;
             rows+='<tr><td>'+title+'</td><td>'+isbn+'</td><td>'+stock+'</td><td>'+qty+'</td><td>'+price.toFixed(2)+'</td><td>'+line.toFixed(2)+'</td></tr>';
         });
+        var ciName=prPrintData.chief_instructor_name||'';
+        var ciSig=prPrintData.chief_instructor_sig?'<img src="'+prPrintData.chief_instructor_sig+'" style="max-height:60px;display:block;margin:0 auto 6px;">':'';
+        var prInstName=pdir==='ltr'?(prPrintData.institute_name_en||prPrintData.institute_name):prPrintData.institute_name;
         var html='<!DOCTYPE html><html dir="'+pdir+'"><head><meta charset="UTF-8">'+
             '<title><?= rsyi_lib_t('طلب عرض السعر','Purchase Request') ?> - '+pr.request_number+'</title>'+
             '<style>body{font-family:Arial,sans-serif;direction:'+pdir+';padding:20px;}'+
             'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #999;padding:6px 10px;text-align:'+(pdir==='rtl'?'right':'left')+';}thead{background:#eee;}'+
             '.sig{display:inline-block;width:200px;border-top:1px solid #333;margin-top:60px;text-align:center;margin:0 20px;}</style></head><body>'+
-            '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+instName+'</h2>'+
+            '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+prInstName+'</h2>'+
             '<h3><?= rsyi_lib_t('طلب عرض السعر','Request for Quotation') ?></h3></div>'+
             '<table style="margin-bottom:16px;border:none;">'+
             '<tr><td style="border:none;"><strong><?= rsyi_lib_t('رقم الطلب','Request No.') ?>:</strong> '+pr.request_number+'</td>'+
@@ -1412,9 +1417,8 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             '<tr><td colspan="5" style="text-align:end;font-weight:700;"><?= rsyi_lib_t('الإجمالي الكلي','Grand Total') ?></td>'+
             '<td style="font-weight:700;">'+grand.toFixed(2)+'</td></tr>'+
             '</tbody></table>'+
-            '<div style="margin-top:50px;display:flex;justify-content:space-around;">'+
-            '<div class="sig"><?= rsyi_lib_t('كبير المدربين','Chief Instructor') ?></div>'+
-            '<div class="sig"><?= rsyi_lib_t('مدير الشؤون','Affairs Manager') ?></div>'+
+            '<div style="margin-top:50px;display:flex;justify-content:flex-start;padding-inline-start:40px;">'+
+            '<div class="sig">'+ciSig+'<?= rsyi_lib_t('كبير المدربين','Chief Instructor') ?>'+(ciName?' / '+ciName:'')+'</div>'+
             '</div></body></html>';
         var win=window.open('','_blank'); win.document.write(html); win.document.close(); win.print();
     });
@@ -1461,46 +1465,77 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             var rows='', total=0;
 
             if(type==='withdrawal'){
-                // Points 4 & 5: use last_purchase_price + ISBN; Chief Instructor sig only
                 items.forEach(function(i){
                     var qty=parseInt(i.quantity||0);
                     var price=parseFloat(i.last_purchase_price||i.unit_price||0);
-                    var line=qty*price;
+                    var tax=parseFloat(i.last_tax_rate||0);
+                    var disc=parseFloat(i.last_discount_rate||0);
+                    var netPrice=price;
+                    if(disc>0) netPrice*=(1-disc/100);
+                    if(tax>0)  netPrice*=(1+tax/100);
+                    var line=qty*netPrice;
                     total+=line;
-                    rows+='<tr><td>'+(i.title_ar||i.title_en||'')+'</td><td>'+(i.isbn||'—')+'</td><td>'+qty+'</td><td>'+price.toFixed(2)+'</td><td>'+line.toFixed(2)+'</td></tr>';
+                    var discTax=(disc||tax)?(disc+'%'+(tax?'/'+tax+'%':'')):'—';
+                    rows+='<tr><td>'+(i.title_ar||i.title_en||'')+'</td><td>'+(i.isbn||'—')+'</td><td>'+qty+'</td>'+
+                          '<td>'+price.toFixed(2)+'</td><td>'+discTax+'</td><td>'+netPrice.toFixed(2)+'</td><td>'+line.toFixed(2)+'</td></tr>';
                 });
                 var ciName=d.chief_instructor_name||'';
                 var ciSig=d.chief_instructor_sig?'<img src="'+d.chief_instructor_sig+'" style="max-height:60px;display:block;margin:0 auto 6px;">':'';
-                var sigBlock='<div style="margin-top:40px;display:flex;justify-content:space-around;">'+
+                var sigBlock='<div style="margin-top:50px;display:flex;justify-content:flex-start;padding-inline-start:40px;">'+
                     '<div class="sig">'+ciSig+'<?= rsyi_lib_t('كبير المدربين','Chief Instructor') ?>'+(ciName?' / '+ciName:'')+'</div>'+
-                    '<div class="sig">'+ciSig+'<?= rsyi_lib_t('الاعتماد','Approved By') ?>'+(ciName?' / '+ciName:'')+'</div>'+
                     '</div>';
+                var instName=pdir==='ltr'?(d.institute_name_en||d.institute_name):d.institute_name;
                 var html='<!DOCTYPE html><html dir="'+pdir+'"><head><meta charset="UTF-8"><title>'+ptype+'</title>'+
                     '<style>body{font-family:Arial,sans-serif;direction:'+pdir+';padding:20px;}'+
                     'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #999;padding:6px 10px;text-align:'+(pdir==='rtl'?'right':'left')+';}'+
                     'thead{background:#eee;}.sig{display:inline-block;width:220px;border-top:1px solid #333;margin-top:60px;text-align:center;margin:0 20px;}</style></head><body>'+
-                    '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+d.institute_name+'</h2><h3>'+ptype+'</h3></div>'+
+                    '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+instName+'</h2><h3>'+ptype+'</h3></div>'+
                     '<table style="margin-bottom:16px;border:none;"><tr><td style="border:none;"><strong>'+L.print_order_no+'</strong> '+o.order_number+'</td><td style="border:none;"><strong>'+L.print_date_lbl+'</strong> '+(o.created_at||'').substr(0,10)+'</td></tr>'+
                     (o.cohort_name?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_cohort_lbl+'</strong> '+o.cohort_name+'</td></tr>':'')+
                     (o.notes?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_notes_lbl+'</strong> '+o.notes+'</td></tr>':'')+'</table>'+
-                    '<table><thead><tr><th>'+L.print_book+'</th><th>ISBN</th><th>'+L.rpt_qty+'</th><th><?= rsyi_lib_t('آخر سعر شراء','Last Purchase Price') ?></th><th>'+L.print_total+'</th></tr></thead><tbody>'+rows+
-                    '<tr><td colspan="4"><strong>'+L.print_total+'</strong></td><td><strong>'+total.toFixed(2)+'</strong></td></tr>'+
+                    '<table><thead><tr>'+
+                    '<th>'+L.print_book+'</th><th>ISBN</th><th>'+L.rpt_qty+'</th>'+
+                    '<th><?= rsyi_lib_t('سعر الوحدة','Unit Price') ?></th>'+
+                    '<th><?= rsyi_lib_t('خصم%/ضريبة%','Disc%/Tax%') ?></th>'+
+                    '<th><?= rsyi_lib_t('الصافي','Net Price') ?></th>'+
+                    '<th>'+L.print_total+'</th></tr></thead><tbody>'+rows+
+                    '<tr><td colspan="6"><strong>'+L.print_total+'</strong></td><td><strong>'+total.toFixed(2)+'</strong></td></tr>'+
                     '</tbody></table>'+sigBlock+
                     '</body></html>';
                 var win=window.open('','_blank'); win.document.write(html); win.document.close(); win.print();
             } else {
-                items.forEach(function(i){ var qty=parseInt(i.quantity||0); var price=parseFloat(i.unit_price||0); rows+='<tr><td>'+(i.title_ar||i.title_en||'')+'</td><td>'+(i.isbn||'—')+'</td><td>'+qty+'</td><td>'+price.toFixed(2)+'</td><td>'+(qty*price).toFixed(2)+'</td></tr>'; total+=qty*price; });
+                items.forEach(function(i){
+                    var qty=parseInt(i.quantity||0);
+                    var price=parseFloat(i.unit_price||0);
+                    var tax=parseFloat(i.tax_rate||0);
+                    var disc=parseFloat(i.discount_rate||0);
+                    var line=qty*price;
+                    if(disc>0) line*=(1-disc/100);
+                    if(tax>0)  line*=(1+tax/100);
+                    rows+='<tr><td>'+(i.title_ar||i.title_en||'')+'</td><td>'+(i.isbn||'—')+'</td><td>'+qty+'</td>'+
+                          '<td>'+price.toFixed(2)+'</td><td>'+(disc?disc+'%':'—')+'</td><td>'+(tax?tax+'%':'—')+'</td>'+
+                          '<td>'+line.toFixed(2)+'</td></tr>';
+                    total+=line;
+                });
+                var instName=pdir==='ltr'?(d.institute_name_en||d.institute_name):d.institute_name;
                 var html='<!DOCTYPE html><html dir="'+pdir+'"><head><meta charset="UTF-8"><title>'+ptype+'</title>'+
                     '<style>body{font-family:Arial,sans-serif;direction:'+pdir+';padding:20px;}'+
                     'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #999;padding:6px 10px;text-align:'+(pdir==='rtl'?'right':'left')+';}'+
                     'thead{background:#eee;}.sig{display:inline-block;width:200px;border-top:1px solid #333;margin-top:60px;text-align:center;margin-left:40px;}</style></head><body>'+
-                    '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+d.institute_name+'</h2><h3>'+ptype+'</h3></div>'+
-                    '<table style="margin-bottom:16px;border:none;"><tr><td style="border:none;"><strong>'+L.print_order_no+'</strong> '+o.order_number+'</td><td style="border:none;"><strong>'+L.print_date_lbl+'</strong> '+(o.created_at||'').substr(0,10)+'</td></tr>'+
+                    '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+instName+'</h2><h3>'+ptype+'</h3></div>'+
+                    '<table style="margin-bottom:16px;border:none;">'+
+                    '<tr><td style="border:none;"><strong>'+L.print_order_no+'</strong> '+o.order_number+'</td>'+
+                    '<td style="border:none;"><strong>'+L.print_date_lbl+'</strong> '+(o.created_at||'').substr(0,10)+'</td></tr>'+
                     (o.supplier_name?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_supplier_lbl+'</strong> '+o.supplier_name+'</td></tr>':'')+
-                    (o.cohort_name?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_cohort_lbl+'</strong> '+o.cohort_name+'</td></tr>':'')+
+                    (o.quote_number?'<tr><td colspan="2" style="border:none;"><strong><?= rsyi_lib_t('رقم عرض السعر','Quote No.') ?>:</strong> '+o.quote_number+'</td></tr>':'')+
                     (o.notes?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_notes_lbl+'</strong> '+o.notes+'</td></tr>':'')+'</table>'+
-                    '<table><thead><tr><th>'+L.print_book+'</th><th>ISBN</th><th>'+L.rpt_qty+'</th><th>'+L.print_price+'</th><th>'+L.print_total+'</th></tr></thead><tbody>'+rows+
-                    '<tr><td colspan="4"><strong>'+L.print_total+'</strong></td><td><strong>'+total.toFixed(2)+'</strong></td></tr>'+
+                    '<table><thead><tr>'+
+                    '<th>'+L.print_book+'</th><th>ISBN</th><th>'+L.rpt_qty+'</th>'+
+                    '<th>'+L.print_price+'</th>'+
+                    '<th><?= rsyi_lib_t('خصم%','Disc%') ?></th>'+
+                    '<th><?= rsyi_lib_t('ضريبة%','Tax%') ?></th>'+
+                    '<th>'+L.print_total+'</th></tr></thead><tbody>'+rows+
+                    '<tr><td colspan="6"><strong>'+L.print_total+'</strong></td><td><strong>'+total.toFixed(2)+'</strong></td></tr>'+
                     '</tbody></table>'+
                     '<div style="margin-top:40px;display:flex;justify-content:space-around;">'+
                     '<div class="sig">'+L.print_wh_mgr+'</div>'+
