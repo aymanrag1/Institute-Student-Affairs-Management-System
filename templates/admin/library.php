@@ -630,8 +630,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
         'print_book'         => rsyi_lib_t('الكتاب','Book'),
         'print_price'        => rsyi_lib_t('السعر','Price'),
         'print_total'        => rsyi_lib_t('الإجمالي','Total'),
-        'print_wh_mgr'       => rsyi_lib_t('مدير المخازن','Warehouse Manager'),
-        'print_approved_by'  => rsyi_lib_t('المعتمد','Approved By'),
+        'print_acc_mgr'      => rsyi_lib_t('مدير الحسابات','Accounts Manager'),
         'no_student'         => rsyi_lib_t('-- بدون طالب --','-- No Student --'),
         'auto_pr_confirm'    => rsyi_lib_t('إنشاء طلب شراء تلقائي للعناصر الناقصة؟','Auto-generate purchase request for items below max stock?'),
     ]); ?>;
@@ -1492,7 +1491,8 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                     '<div style="text-align:center;margin-bottom:20px;">'+logo+'<h2 style="margin:6px 0;">'+instName+'</h2><h3>'+ptype+'</h3></div>'+
                     '<table style="margin-bottom:16px;border:none;"><tr><td style="border:none;"><strong>'+L.print_order_no+'</strong> '+o.order_number+'</td><td style="border:none;"><strong>'+L.print_date_lbl+'</strong> '+(o.created_at||'').substr(0,10)+'</td></tr>'+
                     (o.cohort_name?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_cohort_lbl+'</strong> '+o.cohort_name+'</td></tr>':'')+
-                    (o.notes?'<tr><td colspan="2" style="border:none;"><strong>'+L.print_notes_lbl+'</strong> '+o.notes+'</td></tr>':'')+'</table>'+
+                    '<tr><td colspan="2" style="border:none;"><strong>'+L.print_notes_lbl+'</strong> '+(o.notes||'—')+'</td></tr>'+
+                    '</table>'+
                     '<table><thead><tr>'+
                     '<th>'+L.print_book+'</th><th>ISBN</th><th>'+L.rpt_qty+'</th>'+
                     '<th><?= rsyi_lib_t('سعر الوحدة','Unit Price') ?></th>'+
@@ -1537,9 +1537,8 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
                     '<th>'+L.print_total+'</th></tr></thead><tbody>'+rows+
                     '<tr><td colspan="6"><strong>'+L.print_total+'</strong></td><td><strong>'+total.toFixed(2)+'</strong></td></tr>'+
                     '</tbody></table>'+
-                    '<div style="margin-top:40px;display:flex;justify-content:space-around;">'+
-                    '<div class="sig">'+L.print_wh_mgr+'</div>'+
-                    (o.approved_by_name?'<div class="sig">'+L.print_approved_by+': '+o.approved_by_name+'</div>':'<div class="sig">'+L.print_approved_by+'</div>')+
+                    '<div style="margin-top:40px;display:flex;justify-content:flex-start;padding-inline-start:40px;">'+
+                    '<div class="sig">'+L.print_acc_mgr+'</div>'+
                     '</div>'+
                     '</body></html>';
                 var win=window.open('','_blank'); win.document.write(html); win.document.close(); win.print();
