@@ -1367,7 +1367,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             // Build editable rows
             var tbody='';
             items.forEach(function(i,idx){
-                var lp=parseFloat(i.last_purchase_price||0);
+                var lp=parseFloat(i.unit_price||i.last_purchase_price||0);
                 var qty=parseInt(i.quantity||0);
                 tbody+='<tr>'+
                     '<td>'+(i.title_ar||i.title_en||'—')+'</td>'+
