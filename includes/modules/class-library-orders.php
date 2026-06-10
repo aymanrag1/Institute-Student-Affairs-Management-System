@@ -537,21 +537,40 @@ class Library_Orders {
         $pr  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}rsyi_lib_purchase_requests WHERE id=%d", $id ) );
         if ( ! $pr ) { wp_send_json_error( [ 'message' => 'Not found' ] ); }
         $items = $wpdb->get_results( $wpdb->prepare(
-            "SELECT i.*, b.title_ar, b.title_en, b.isbn, b.current_stock,
-                (SELECT aoi.unit_price
-                 FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
-                 JOIN  {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id=aoi.order_id
-                 WHERE aoi.book_id=i.book_id
-                 ORDER BY ao.created_at DESC LIMIT 1) AS last_purchase_price
+            "SELECT i.*, b.title_ar, b.title_en, b.isbn, b.current_stock
              FROM {$wpdb->prefix}rsyi_lib_purchase_request_items i
-             LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id=i.book_id WHERE i.request_id=%d", $id
-        ) );
-        $pr->items = $items ?: [];
+             LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id = i.book_id
+             WHERE i.request_id = %d
+             ORDER BY i.id", $id
+        ) ) ?: [];
+        if ( $items ) {
+            $book_ids  = array_unique( array_map( fn( $r ) => (int) $r->book_id, $items ) );
+            $in_clause = implode( ',', array_fill( 0, count( $book_ids ), '%d' ) );
+            // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+            $price_rows = $wpdb->get_results( $wpdb->prepare(
+                "SELECT aoi.book_id, aoi.unit_price
+                 FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
+                 INNER JOIN {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id = aoi.order_id
+                 WHERE aoi.book_id IN ($in_clause)
+                 ORDER BY ao.created_at DESC",
+                ...$book_ids
+            ) ) ?: [];
+            $price_map = [];
+            foreach ( $price_rows as $r ) {
+                if ( ! isset( $price_map[ (int) $r->book_id ] ) ) {
+                    $price_map[ (int) $r->book_id ] = (float) $r->unit_price;
+                }
+            }
+            foreach ( $items as $item ) {
+                $item->last_purchase_price = $price_map[ (int) $item->book_id ] ?? 0;
+            }
+        }
+        $pr->items = $items;
         wp_send_json_success( $pr );
     }
 
     static function handle_get_pr_print_data(): void {
-        self::check_view();
+        self::check_manage();
         global $wpdb;
         $id = intval( $_POST['pr_id'] ?? 0 );
         $pr = $wpdb->get_row( $wpdb->prepare(
@@ -563,23 +582,44 @@ class Library_Orders {
         ) );
         if ( ! $pr ) { wp_send_json_error( [ 'message' => 'Not found' ] ); }
 
+        // Simple items query — no correlated subquery to avoid silent MySQL failures
         $items = $wpdb->get_results( $wpdb->prepare(
-            "SELECT i.*, b.title_ar, b.title_en, b.isbn, b.current_stock,
-                (SELECT aoi.unit_price
-                 FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
-                 JOIN  {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id = aoi.order_id
-                 WHERE aoi.book_id = i.book_id
-                 ORDER BY ao.created_at DESC LIMIT 1) AS last_purchase_price
+            "SELECT i.*, b.title_ar, b.title_en, b.isbn, b.current_stock
              FROM {$wpdb->prefix}rsyi_lib_purchase_request_items i
              LEFT JOIN {$wpdb->prefix}rsyi_books b ON b.id = i.book_id
-             WHERE i.request_id=%d", $id
-        ) );
+             WHERE i.request_id = %d
+             ORDER BY i.id", $id
+        ) ) ?: [];
+
+        // Attach last purchase price per book via a separate bulk query
+        if ( $items ) {
+            $book_ids   = array_unique( array_map( fn( $r ) => (int) $r->book_id, $items ) );
+            $in_clause  = implode( ',', array_fill( 0, count( $book_ids ), '%d' ) );
+            // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+            $price_rows = $wpdb->get_results( $wpdb->prepare(
+                "SELECT aoi.book_id, aoi.unit_price
+                 FROM {$wpdb->prefix}rsyi_lib_add_order_items aoi
+                 INNER JOIN {$wpdb->prefix}rsyi_lib_add_orders ao ON ao.id = aoi.order_id
+                 WHERE aoi.book_id IN ($in_clause)
+                 ORDER BY ao.created_at DESC",
+                ...$book_ids
+            ) ) ?: [];
+            $price_map = [];
+            foreach ( $price_rows as $r ) {
+                if ( ! isset( $price_map[ (int) $r->book_id ] ) ) {
+                    $price_map[ (int) $r->book_id ] = (float) $r->unit_price;
+                }
+            }
+            foreach ( $items as $item ) {
+                $item->last_purchase_price = $price_map[ (int) $item->book_id ] ?? 0;
+            }
+        }
 
         $ci_users = get_users( [ 'role' => 'rsyi_senior_naval_trainer', 'number' => 1, 'fields' => [ 'ID', 'display_name' ] ] );
         $ci_id    = $ci_users ? (int) $ci_users[0]->ID : 0;
         wp_send_json_success( [
             'pr'                    => $pr,
-            'items'                 => $items ?: [],
+            'items'                 => $items,
             'logo'                  => get_option( 'rsyi_logo_url', '' ),
             'institute_name'        => get_option( 'rsyi_institute_name', 'Red Sea Yachting Institute' ),
             'institute_name_en'     => get_option( 'rsyi_institute_name_en', 'Red Sea Yachting Institute' ),
@@ -599,10 +639,9 @@ class Library_Orders {
 
         $items = [];
         foreach ( $items_raw as $row ) {
-            $bid   = intval( $row['book_id'] ?? 0 );
-            $qty   = max( 1, intval( $row['quantity'] ?? 1 ) );
-            $price = max( 0, (float) ( $row['unit_price'] ?? 0 ) );
-            if ( $bid ) { $items[] = [ 'book_id' => $bid, 'quantity' => $qty, 'unit_price' => $price, 'notes' => sanitize_text_field( $row['notes'] ?? '' ) ]; }
+            $bid = intval( $row['book_id'] ?? 0 );
+            $qty = max( 1, intval( $row['quantity'] ?? 1 ) );
+            if ( $bid ) { $items[] = [ 'book_id' => $bid, 'quantity' => $qty, 'notes' => sanitize_text_field( $row['notes'] ?? '' ) ]; }
         }
 
         if ( $id > 0 ) {
