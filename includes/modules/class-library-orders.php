@@ -635,14 +635,15 @@ class Library_Orders {
         $id        = intval( $_POST['pr_id'] ?? 0 );
         $notes     = sanitize_textarea_field( $_POST['notes'] ?? '' );
         $items_raw = json_decode( stripslashes( $_POST['items'] ?? '[]' ), true );
-        if ( empty( $items_raw ) ) { wp_send_json_error( [ 'message' => 'أضف كتاباً على الأقل / Add at least one book' ] ); }
 
         $items = [];
-        foreach ( $items_raw as $row ) {
+        foreach ( (array) $items_raw as $row ) {
             $bid = intval( $row['book_id'] ?? 0 );
             $qty = max( 1, intval( $row['quantity'] ?? 1 ) );
             if ( $bid ) { $items[] = [ 'book_id' => $bid, 'quantity' => $qty, 'notes' => sanitize_text_field( $row['notes'] ?? '' ) ]; }
         }
+        // Validate AFTER filtering so a row with book_id=0 doesn't sneak through and wipe real items
+        if ( empty( $items ) ) { wp_send_json_error( [ 'message' => 'أضف كتاباً على الأقل / Add at least one book' ] ); }
 
         if ( $id > 0 ) {
             $pr = $wpdb->get_row( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}rsyi_lib_purchase_requests WHERE id=%d", $id ) );
@@ -660,6 +661,7 @@ class Library_Orders {
                 'created_at'     => current_time( 'mysql' ),
             ] );
             $id = $wpdb->insert_id;
+            if ( ! $id ) { wp_send_json_error( [ 'message' => 'فشل إنشاء الطلب / Failed to create PR' ] ); }
         }
         foreach ( $items as $item ) {
             $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_request_items', array_merge( $item, [ 'request_id' => $id ] ) );
@@ -947,22 +949,31 @@ class Library_Orders {
         $uid     = get_current_user_id();
         $ci_id   = self::get_chief_instructor_id();
         $req_num = Library_Transactions::generate_order_number( 'PR' );
-        $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_requests', [
+        $result  = $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_requests', [
             'request_number' => $req_num,
             'status'         => 'pending',
             'notes'          => 'Auto-generated / توليد تلقائي',
             'requested_by'   => $ci_id ?: $uid,
             'created_at'     => current_time( 'mysql' ),
         ] );
-        $id = $wpdb->insert_id;
-        foreach ( $items as $item ) {
-            $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_request_items', array_merge( $item, [ 'request_id' => $id ] ) );
+        if ( ! $result || ! ( $id = $wpdb->insert_id ) ) {
+            wp_send_json_error( [ 'message' => 'فشل إنشاء الطلب — ' . $wpdb->last_error . ' / Failed to create PR' ] );
         }
-        \RSYI_SA\Audit_Log::log( 'purchase_request', $id, 'auto_create', [ 'items_count' => count( $items ) ] );
+        $saved = 0;
+        foreach ( $items as $item ) {
+            if ( $wpdb->insert( $wpdb->prefix . 'rsyi_lib_purchase_request_items', array_merge( $item, [ 'request_id' => $id ] ) ) ) {
+                $saved++;
+            }
+        }
+        if ( ! $saved ) {
+            $wpdb->delete( $wpdb->prefix . 'rsyi_lib_purchase_requests', [ 'id' => $id ] );
+            wp_send_json_error( [ 'message' => 'فشل حفظ عناصر الطلب — ' . $wpdb->last_error . ' / Failed to save PR items. Check DB migration.' ] );
+        }
+        \RSYI_SA\Audit_Log::log( 'purchase_request', $id, 'auto_create', [ 'items_count' => $saved ] );
         wp_send_json_success( [
-            'message' => sprintf( 'تم إنشاء طلب شراء بـ %d عنصر / Created PR with %d items', count( $items ), count( $items ) ),
+            'message' => sprintf( 'تم إنشاء طلب شراء بـ %d عنصر / Created PR with %d items', $saved, $saved ),
             'id'      => $id,
-            'count'   => count( $items ),
+            'count'   => $saved,
         ] );
     }
 
