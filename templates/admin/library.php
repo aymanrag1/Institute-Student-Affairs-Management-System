@@ -1212,7 +1212,7 @@ $_dir = $_lib_en ? 'ltr' : 'rtl';
             $('<td>').append(sel),
             $('<td>').append($('<input type="number" class="pr-qty" value="'+(qty||1)+'" min="1" style="width:70px;">')),
             $('<td>').append(priceInput),
-            $('<td>').append($('<input type="text" class="pr-notes-r regular-text" value="'+(notes||'')+'">')),
+            $('<td>').append($('<input type="text" class="pr-notes-r" style="width:100%;box-sizing:border-box;" value="'+(notes||'')+'">')),
             $('<td>').append($('<button type="button" class="button button-small pr-del-row">×</button>'))
         );
         // Auto-fill price when book changes

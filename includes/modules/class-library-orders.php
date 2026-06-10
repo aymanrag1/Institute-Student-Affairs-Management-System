@@ -638,9 +638,10 @@ class Library_Orders {
 
         $items = [];
         foreach ( (array) $items_raw as $row ) {
-            $bid = intval( $row['book_id'] ?? 0 );
-            $qty = max( 1, intval( $row['quantity'] ?? 1 ) );
-            if ( $bid ) { $items[] = [ 'book_id' => $bid, 'quantity' => $qty, 'notes' => sanitize_text_field( $row['notes'] ?? '' ) ]; }
+            $bid   = intval( $row['book_id'] ?? 0 );
+            $qty   = max( 1, intval( $row['quantity'] ?? 1 ) );
+            $price = max( 0, (float) ( $row['unit_price'] ?? 0 ) );
+            if ( $bid ) { $items[] = [ 'book_id' => $bid, 'quantity' => $qty, 'unit_price' => $price, 'notes' => sanitize_text_field( $row['notes'] ?? '' ) ]; }
         }
         // Validate AFTER filtering so a row with book_id=0 doesn't sneak through and wipe real items
         if ( empty( $items ) ) { wp_send_json_error( [ 'message' => 'أضف كتاباً على الأقل / Add at least one book' ] ); }
