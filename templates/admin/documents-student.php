@@ -180,6 +180,16 @@ $pct = $total_required > 0 ? round( ( $approved_count / $total_required ) * 100 
                 <?php elseif ( $doc->status === 'approved' ) : ?>
                 <span style="color:#27ae60; font-weight:700; font-size:13px;">✓ <?php esc_html_e( 'Approved', 'rsyi-sa' ); ?></span>
                 <?php endif; ?>
+
+                <?php if ( $can_approve ) : ?>
+                <button type="button" class="button button-small rsyi-delete-doc"
+                        data-doc="<?php echo esc_attr( $doc->id ); ?>"
+                        data-type="<?php echo esc_attr( $doc_type ); ?>"
+                        style="color:#e74c3c; border-color:#e74c3c; margin-top:4px; display:block;"
+                        title="<?php esc_attr_e( 'Delete this document permanently', 'rsyi-sa' ); ?>">
+                    🗑 <?php esc_html_e( 'Delete File', 'rsyi-sa' ); ?>
+                </button>
+                <?php endif; ?>
             </div>
             <div class="rsyi-doc-msg" data-doc="<?php echo esc_attr( $doc ? $doc->id : 0 ); ?>" style="font-size:12px; margin-top:6px;"></div>
 
@@ -248,6 +258,35 @@ jQuery(function($){
         }, function(res){
             if ( res.success ) { location.reload(); }
             else { $btn.prop('disabled', false); alert(res.data.message); }
+        });
+    });
+
+    // ── Delete document (admin only) ─────────────────────────────────────────
+    $(document).on('click', '.rsyi-delete-doc', function(){
+        var $btn   = $(this);
+        var doc_id = $btn.data('doc');
+        var type   = $btn.data('type');
+        if ( ! confirm('<?php echo esc_js( __( 'Are you sure you want to permanently delete this file? This action cannot be undone.', 'rsyi-sa' ) ); ?>') ) return;
+        $btn.prop('disabled', true).text('<?php echo esc_js( __( 'Deleting…', 'rsyi-sa' ) ); ?>');
+        $.post(rsyiSA.ajaxUrl, {
+            action: 'rsyi_delete_document',
+            _nonce: rsyiSA.nonce,
+            doc_id: doc_id
+        }, function(res){
+            if ( res.success ) {
+                // Remove the card and show empty state
+                var $card = $('#doc-card-' + type);
+                $card.find('[style*="padding:14px"]').html(
+                    '<p style="color:#999; font-style:italic; margin:0 0 10px;">📭 <?php echo esc_js( __( 'No file uploaded yet.', 'rsyi-sa' ) ); ?></p>'
+                );
+                $card.find('[style*="background:#27ae60"]').first().css('background', '#6c757d');
+                $card.find('[style*="background:#f39c12"]').first().css('background', '#6c757d');
+                $card.find('[style*="APPROVED"], [style*="Approved"]').text('NOT UPLOADED');
+                setTimeout(function(){ location.reload(); }, 800);
+            } else {
+                $btn.prop('disabled', false).text('🗑 <?php echo esc_js( __( 'Delete File', 'rsyi-sa' ) ); ?>');
+                alert(res.data.message);
+            }
         });
     });
 

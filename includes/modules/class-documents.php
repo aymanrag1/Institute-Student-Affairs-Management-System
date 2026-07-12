@@ -249,12 +249,10 @@ class Documents {
         if ( ! $doc ) {
             wp_send_json_error( [ 'message' => __( 'الوثيقة غير موجودة.', 'rsyi-sa' ) ] );
         }
-        // Only delete physical file if rejected (approved files kept for audit)
-        if ( $doc->status === 'rejected' ) {
-            $abs = RSYI_SA_UPLOAD_DIR . '/' . $doc->file_path;
-            if ( file_exists( $abs ) ) {
-                wp_delete_file( $abs );
-            }
+        // Delete physical file in all cases when admin explicitly deletes
+        $abs = RSYI_SA_UPLOAD_DIR . '/' . $doc->file_path;
+        if ( file_exists( $abs ) ) {
+            wp_delete_file( $abs );
         }
         global $wpdb;
         $wpdb->delete( $wpdb->prefix . 'rsyi_documents', [ 'id' => $doc_id ], [ '%d' ] );
