@@ -7,129 +7,221 @@
 defined( 'ABSPATH' ) || exit;
 
 $status_labels = [
-    'pending_docs' => __( 'Pending Documents', 'rsyi-sa' ),
-    'active'       => __( 'Active', 'rsyi-sa' ),
-    'suspended'    => __( 'Suspended', 'rsyi-sa' ),
-    'expelled'     => __( 'Expelled', 'rsyi-sa' ),
+    'pending_docs' => 'في انتظار المستندات',
+    'active'       => 'نشط',
+    'suspended'    => 'موقوف',
+    'expelled'     => 'مفصول',
+];
+$status_labels_en = [
+    'pending_docs' => 'Pending Documents',
+    'active'       => 'Active',
+    'suspended'    => 'Suspended',
+    'expelled'     => 'Expelled',
 ];
 
-// Portal page URLs
 $page_links = [
-    'documents'   => get_option( 'rsyi_page_documents' )        ? get_permalink( get_option( 'rsyi_page_documents' ) )        : '',
-    'requests'    => get_option( 'rsyi_page_requests' )         ? get_permalink( get_option( 'rsyi_page_requests' ) )         : '',
-    'behavior'    => get_option( 'rsyi_page_behavior' )         ? get_permalink( get_option( 'rsyi_page_behavior' ) )         : '',
-    'evaluation'  => get_option( 'rsyi_page_evaluation' )       ? get_permalink( get_option( 'rsyi_page_evaluation' ) )       : '',
-    'materials'   => get_option( 'rsyi_page_materials' )        ? get_permalink( get_option( 'rsyi_page_materials' ) )        : '',
-    'grades'      => get_option( 'rsyi_page_grades' )           ? get_permalink( get_option( 'rsyi_page_grades' ) )           : '',
-    'attendance'  => get_option( 'rsyi_page_attendance_record' )? get_permalink( get_option( 'rsyi_page_attendance_record' ) ): '',
+    'documents'   => get_option( 'rsyi_page_documents' )         ? get_permalink( get_option( 'rsyi_page_documents' ) )         : '',
+    'requests'    => get_option( 'rsyi_page_requests' )          ? get_permalink( get_option( 'rsyi_page_requests' ) )          : '',
+    'behavior'    => get_option( 'rsyi_page_behavior' )          ? get_permalink( get_option( 'rsyi_page_behavior' ) )          : '',
+    'evaluation'  => get_option( 'rsyi_page_evaluation' )        ? get_permalink( get_option( 'rsyi_page_evaluation' ) )        : '',
+    'materials'   => get_option( 'rsyi_page_materials' )         ? get_permalink( get_option( 'rsyi_page_materials' ) )         : '',
+    'grades'      => get_option( 'rsyi_page_grades' )            ? get_permalink( get_option( 'rsyi_page_grades' ) )            : '',
+    'attendance'  => get_option( 'rsyi_page_attendance_record' ) ? get_permalink( get_option( 'rsyi_page_attendance_record' ) ) : '',
+    'boss_man'    => get_option( 'rsyi_page_boss_man' )          ? get_permalink( get_option( 'rsyi_page_boss_man' ) )          : '',
 ];
-?>
-<div class="rsyi-portal" dir="ltr" style="font-family:sans-serif; max-width:860px; margin:0 auto;">
 
-    <!-- Welcome Header -->
-    <div style="background:linear-gradient(135deg,#0073aa,#005177); color:#fff; border-radius:10px; padding:28px 32px; margin-bottom:24px; display:flex; align-items:center; gap:20px;">
-        <?php echo get_avatar( $profile->user_id, 64, '', '', [ 'style' => 'border-radius:50%; border:3px solid rgba(255,255,255,.4);' ] ); ?>
-        <div>
-            <h2 style="margin:0 0 4px; font-size:22px;">
-                <?php esc_html_e( 'Welcome,', 'rsyi-sa' ); ?> <?php echo esc_html( $profile->english_full_name ); ?>
-            </h2>
-            <p style="margin:0; opacity:.85; font-size:14px;">
-                <?php echo esc_html( get_option( 'rsyi_institute_name', 'Red Sea Yacht Institute' ) ); ?>
-                &nbsp;|&nbsp; <?php esc_html_e( 'Student Portal', 'rsyi-sa' ); ?>
-            </p>
+$status_color = [ 'pending_docs' => '#f39c12', 'active' => '#27ae60', 'suspended' => '#e67e22', 'expelled' => '#e74c3c' ];
+$sc = $status_color[ $profile->status ] ?? '#999';
+$pts_color = $total_pts >= 30 ? '#e74c3c' : ( $total_pts >= 20 ? '#e67e22' : '#27ae60' );
+
+$is_boss_man = ! empty( $profile->is_boss_man );
+$institute_name = get_option( 'rsyi_institute_name', 'معهد البحر الأحمر' );
+?>
+<div class="rsyi-portal" dir="rtl" style="font-family:'Segoe UI', Tahoma, sans-serif; max-width:900px; margin:0 auto; color:#2c3e50;">
+
+    <!-- ══ HEADER ══════════════════════════════════════════════════════════ -->
+    <div style="background:linear-gradient(135deg,#1a3a5c,#0073aa); color:#fff; border-radius:14px; padding:28px 32px; margin-bottom:22px; display:flex; align-items:center; gap:20px; position:relative; overflow:hidden;">
+        <div style="position:absolute; top:-30px; left:-30px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,.06);"></div>
+        <div style="position:absolute; bottom:-20px; left:60px; width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,.04);"></div>
+        <?php echo get_avatar( $profile->user_id, 72, '', '', [ 'style' => 'border-radius:50%; border:3px solid rgba(255,255,255,.5); flex-shrink:0; position:relative; z-index:1;' ] ); ?>
+        <div style="position:relative; z-index:1;">
+            <p style="margin:0 0 2px; opacity:.75; font-size:12px; letter-spacing:1px; text-transform:uppercase;"><?php echo esc_html( $institute_name ); ?> — بوابة الطالب</p>
+            <h2 style="margin:0 0 6px; font-size:22px; font-weight:700;"><?php echo esc_html( $profile->arabic_full_name ); ?></h2>
+            <p style="margin:0; opacity:.85; font-size:13px;"><?php echo esc_html( $profile->english_full_name ); ?></p>
+            <?php if ( $is_boss_man ) : ?>
+            <span style="display:inline-block; margin-top:8px; background:rgba(230,126,34,.85); color:#fff; padding:3px 14px; border-radius:20px; font-size:12px; font-weight:700;">
+                👮 حكمدار الدفعة
+            </span>
+            <?php endif; ?>
         </div>
+        <a href="<?php echo esc_url( wp_logout_url( home_url() ) ); ?>"
+           style="position:relative; z-index:1; margin-right:auto; background:rgba(255,255,255,.15); color:#fff; padding:8px 18px; border-radius:8px; text-decoration:none; font-size:13px; border:1px solid rgba(255,255,255,.25); white-space:nowrap;">
+            تسجيل الخروج ↩
+        </a>
     </div>
 
-    <!-- Pending Warnings -->
+    <!-- ══ WARNINGS ════════════════════════════════════════════════════════ -->
     <?php if ( ! empty( $warnings ) ) : ?>
-    <div style="background:#fff3cd; border:1px solid #ffc107; border-left:5px solid #ff9800; border-radius:6px; padding:18px 20px; margin-bottom:20px;">
-        <strong style="color:#856404;">⚠ <?php esc_html_e( 'Action Required – Pending Warnings', 'rsyi-sa' ); ?></strong>
+    <div style="background:#fff3cd; border:1px solid #ffc107; border-right:5px solid #ff9800; border-radius:10px; padding:16px 20px; margin-bottom:20px;">
+        <strong style="color:#856404; font-size:14px;">⚠ مطلوب منك اتخاذ إجراء — تحذيرات سلوكية معلقة</strong>
         <?php foreach ( $warnings as $w ) : ?>
-        <div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(0,0,0,.1);" class="rsyi-warning-item">
-            <p style="margin:0 0 8px; color:#555;">
-                <?php printf(
-                    esc_html__( 'You have reached %d behavior points. You must acknowledge this warning to continue.', 'rsyi-sa' ),
-                    (int) $w->threshold
-                ); ?>
+        <div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(0,0,0,.08);" class="rsyi-warning-item">
+            <p style="margin:0 0 10px; color:#555; font-size:13px;">
+                وصلت إلى <?php echo (int) $w->threshold; ?> نقطة سلوكية. يجب الاطلاع والموافقة على هذا التحذير للاستمرار.
             </p>
-            <button class="button button-primary rsyi-ack-btn" data-warning-id="<?php echo esc_attr( $w->id ); ?>">
-                ✍ <?php esc_html_e( 'Acknowledge & Continue', 'rsyi-sa' ); ?>
+            <button class="button button-primary rsyi-ack-btn" data-warning-id="<?php echo esc_attr( $w->id ); ?>" style="background:#e67e22; border-color:#d35400;">
+                ✍ موافق — لقد اطلعت
             </button>
         </div>
         <?php endforeach; ?>
     </div>
     <?php endif; ?>
 
-    <!-- Status Cards -->
-    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:28px;">
-        <div style="background:#fff; border:1px solid #dee2e6; border-radius:8px; padding:18px; text-align:center;">
-            <div style="font-size:13px; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;"><?php esc_html_e( 'Cohort', 'rsyi-sa' ); ?></div>
-            <div style="font-size:20px; font-weight:700; color:#0073aa;"><?php echo esc_html( isset( $cohort->name ) ? $cohort->name : '—' ); ?></div>
+    <!-- ══ STATUS CARDS ═════════════════════════════════════════════════════ -->
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:22px;">
+
+        <!-- Cohort -->
+        <div style="background:#fff; border:1px solid #e8ecef; border-radius:10px; padding:18px 16px; text-align:center; border-top:4px solid #0073aa; box-shadow:0 2px 8px rgba(0,0,0,.04);">
+            <div style="font-size:28px; margin-bottom:6px;">🎓</div>
+            <div style="font-size:11px; color:#888; text-transform:uppercase; letter-spacing:.8px; margin-bottom:4px;">الدفعة</div>
+            <div style="font-size:16px; font-weight:700; color:#0073aa;"><?php echo esc_html( $cohort->name ?? '—' ); ?></div>
         </div>
-        <div style="background:#fff; border:1px solid #dee2e6; border-radius:8px; padding:18px; text-align:center; border-top:3px solid <?php
-            $bc = [ 'pending_docs' => '#f39c12', 'active' => '#27ae60', 'suspended' => '#e67e22', 'expelled' => '#e74c3c' ];
-            echo esc_attr( $bc[ $profile->status ] ?? '#999' );
-        ?>;">
-            <div style="font-size:13px; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;"><?php esc_html_e( 'Account Status', 'rsyi-sa' ); ?></div>
-            <div style="font-size:18px; font-weight:700;"><?php echo esc_html( $status_labels[ $profile->status ] ?? $profile->status ); ?></div>
+
+        <!-- Status -->
+        <div style="background:#fff; border:1px solid #e8ecef; border-radius:10px; padding:18px 16px; text-align:center; border-top:4px solid <?php echo esc_attr( $sc ); ?>; box-shadow:0 2px 8px rgba(0,0,0,.04);">
+            <div style="font-size:28px; margin-bottom:6px;"><?php echo $profile->status === 'active' ? '✅' : ( $profile->status === 'pending_docs' ? '📋' : '⛔' ); ?></div>
+            <div style="font-size:11px; color:#888; text-transform:uppercase; letter-spacing:.8px; margin-bottom:4px;">حالة الحساب</div>
+            <div style="font-size:15px; font-weight:700; color:<?php echo esc_attr( $sc ); ?>;">
+                <?php echo esc_html( $status_labels[ $profile->status ] ?? $profile->status ); ?>
+            </div>
         </div>
-        <div style="background:#fff; border:1px solid #dee2e6; border-radius:8px; padding:18px; text-align:center; border-top:3px solid <?php echo $total_pts >= 30 ? '#e74c3c' : ( $total_pts >= 20 ? '#e67e22' : '#27ae60' ); ?>;">
-            <div style="font-size:13px; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;"><?php esc_html_e( 'Behavior Points', 'rsyi-sa' ); ?></div>
-            <div style="font-size:24px; font-weight:700; color:<?php echo $total_pts >= 30 ? '#e74c3c' : ( $total_pts >= 20 ? '#e67e22' : '#27ae60' ); ?>;">
-                <?php echo esc_html( $total_pts ); ?> <span style="font-size:14px; color:#888;">/ 40</span>
+
+        <!-- Behavior Points -->
+        <div style="background:#fff; border:1px solid #e8ecef; border-radius:10px; padding:18px 16px; text-align:center; border-top:4px solid <?php echo esc_attr( $pts_color ); ?>; box-shadow:0 2px 8px rgba(0,0,0,.04);">
+            <div style="font-size:28px; margin-bottom:6px;">📊</div>
+            <div style="font-size:11px; color:#888; text-transform:uppercase; letter-spacing:.8px; margin-bottom:4px;">نقاط السلوك</div>
+            <div style="font-size:22px; font-weight:700; color:<?php echo esc_attr( $pts_color ); ?>;">
+                <?php echo esc_html( $total_pts ); ?> <span style="font-size:13px; color:#aaa;">/ 40</span>
             </div>
         </div>
     </div>
 
-    <!-- Quick Links -->
-    <h3 style="color:#333; margin-bottom:14px;"><?php esc_html_e( 'Quick Access', 'rsyi-sa' ); ?></h3>
-    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px;">
-        <?php
-        $nav_items = [
-            [ 'icon' => '📄', 'label' => __( 'My Documents', 'rsyi-sa' ),          'url' => $page_links['documents'],  'desc' => __( 'Upload & track required documents', 'rsyi-sa' ) ],
-            [ 'icon' => '📝', 'label' => __( 'Permits & Requests', 'rsyi-sa' ),     'url' => $page_links['requests'],   'desc' => __( 'Exit & overnight permits', 'rsyi-sa' ) ],
-            [ 'icon' => '📊', 'label' => __( 'Behavior Record', 'rsyi-sa' ),        'url' => $page_links['behavior'],   'desc' => __( 'View your behavior points', 'rsyi-sa' ) ],
-            [ 'icon' => '⭐', 'label' => __( 'Peer Evaluation', 'rsyi-sa' ),        'url' => $page_links['evaluation'], 'desc' => __( 'Rate your cohort members', 'rsyi-sa' ) ],
-            [ 'icon' => '📚', 'label' => __( 'Study Materials', 'rsyi-sa' ),        'url' => $page_links['materials'],  'desc' => __( 'Download course materials', 'rsyi-sa' ) ],
-            [ 'icon' => '🏅', 'label' => __( 'My Grades', 'rsyi-sa' ),             'url' => $page_links['grades'],     'desc' => __( 'View exam results & grades', 'rsyi-sa' ) ],
-            [ 'icon' => '📅', 'label' => __( 'Attendance Record', 'rsyi-sa' ),      'url' => $page_links['attendance'], 'desc' => __( 'Your attendance history', 'rsyi-sa' ) ],
-        ];
-        foreach ( $nav_items as $item ) :
-            if ( ! $item['url'] ) continue;
-        ?>
-        <a href="<?php echo esc_url( $item['url'] ); ?>"
-           style="background:#fff; border:1px solid #dee2e6; border-radius:8px; padding:20px 16px; text-align:center; text-decoration:none; color:#333; transition:box-shadow .2s; display:block;"
-           onmouseover="this.style.boxShadow='0 4px 12px rgba(0,115,170,.2)'; this.style.borderColor='#0073aa';"
-           onmouseout="this.style.boxShadow=''; this.style.borderColor='#dee2e6';">
-            <div style="font-size:32px; margin-bottom:8px;"><?php echo $item['icon']; ?></div>
-            <div style="font-weight:700; margin-bottom:4px; color:#0073aa;"><?php echo esc_html( $item['label'] ); ?></div>
-            <div style="font-size:12px; color:#888;"><?php echo esc_html( $item['desc'] ); ?></div>
-        </a>
-        <?php endforeach; ?>
-    </div>
-
-    <?php if ( $profile->status === 'pending_docs' ) : ?>
-    <div style="background:#e8f4fd; border:1px solid #90caf9; border-radius:6px; padding:16px 20px; margin-top:20px; display:flex; align-items:center; gap:14px;">
-        <span style="font-size:28px;">📋</span>
-        <div>
-            <strong><?php esc_html_e( 'Documents Required', 'rsyi-sa' ); ?></strong>
-            <p style="margin:4px 0 0; color:#555; font-size:14px;">
-                <?php esc_html_e( 'Your account will be activated after all 8 required documents are uploaded and approved.', 'rsyi-sa' ); ?>
-            </p>
-            <?php if ( $page_links['documents'] ) : ?>
-            <a href="<?php echo esc_url( $page_links['documents'] ); ?>" class="button button-primary" style="margin-top:10px;">
-                <?php esc_html_e( 'Upload Documents Now →', 'rsyi-sa' ); ?>
-            </a>
-            <?php endif; ?>
+    <!-- ══ PENDING DOCS BANNER ═══════════════════════════════════════════════ -->
+    <?php if ( $profile->status === 'pending_docs' && $page_links['documents'] ) : ?>
+    <div style="background:linear-gradient(135deg,#e3f2fd,#bbdefb); border:1px solid #90caf9; border-right:5px solid #0073aa; border-radius:10px; padding:18px 22px; margin-bottom:22px; display:flex; align-items:center; gap:16px;">
+        <span style="font-size:36px;">📋</span>
+        <div style="flex:1;">
+            <strong style="font-size:15px; color:#0d47a1;">مطلوب رفع المستندات</strong>
+            <p style="margin:4px 0 0; color:#1565c0; font-size:13px;">سيتم تفعيل حسابك بعد رفع جميع الوثائق الـ 8 المطلوبة والموافقة عليها.</p>
         </div>
+        <a href="<?php echo esc_url( $page_links['documents'] ); ?>" class="button button-primary"
+           style="background:#0073aa; border-color:#005177; color:#fff; white-space:nowrap;">
+            رفع الوثائق الآن ←
+        </a>
     </div>
     <?php endif; ?>
 
-    <!-- Logout link -->
-    <div style="margin-top:24px; text-align:right; padding-top:16px; border-top:1px solid #eee;">
-        <a href="<?php echo esc_url( wp_logout_url( home_url() ) ); ?>" style="color:#999; font-size:13px; text-decoration:none;">
-            <?php esc_html_e( '← Sign Out', 'rsyi-sa' ); ?>
-        </a>
+    <!-- ══ BOSS MAN SECTION ══════════════════════════════════════════════════ -->
+    <?php if ( $is_boss_man && $page_links['boss_man'] ) : ?>
+    <a href="<?php echo esc_url( $page_links['boss_man'] ); ?>"
+       style="display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#e67e22,#d35400); color:#fff; border-radius:10px; padding:18px 22px; margin-bottom:22px; text-decoration:none; transition:opacity .2s;"
+       onmouseover="this.style.opacity='.92'" onmouseout="this.style.opacity='1'">
+        <span style="font-size:40px;">👮</span>
+        <div>
+            <strong style="font-size:16px; display:block; margin-bottom:3px;">تقرير المتابعة الدراسية اليومي</strong>
+            <span style="font-size:13px; opacity:.9;">بما أنك حكمدار الدفعة — سجّل الكورسات التي التحق بها الزملاء اليوم</span>
+        </div>
+        <span style="margin-right:auto; font-size:24px; opacity:.7;">←</span>
+    </a>
+    <?php endif; ?>
+
+    <!-- ══ QUICK LINKS GRID ══════════════════════════════════════════════════ -->
+    <h3 style="font-size:15px; color:#555; margin-bottom:14px; font-weight:600; border-bottom:1px solid #eee; padding-bottom:8px;">
+        ⚡ الوصول السريع
+    </h3>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:14px; margin-bottom:28px;">
+    <?php
+    $nav_items = [
+        [
+            'icon'  => '📄',
+            'label' => 'وثائقي',
+            'url'   => $page_links['documents'],
+            'desc'  => 'رفع ومتابعة الوثائق المطلوبة',
+            'color' => '#0073aa',
+            'bg'    => '#e3f2fd',
+        ],
+        [
+            'icon'  => '📝',
+            'label' => 'التصاريح والطلبات',
+            'url'   => $page_links['requests'],
+            'desc'  => 'تصاريح الخروج والمبيت',
+            'color' => '#8e44ad',
+            'bg'    => '#f3e5f5',
+        ],
+        [
+            'icon'  => '📊',
+            'label' => 'سجل السلوك',
+            'url'   => $page_links['behavior'],
+            'desc'  => 'عرض نقاط ومخالفات السلوك',
+            'color' => '#e74c3c',
+            'bg'    => '#fdecea',
+        ],
+        [
+            'icon'  => '⭐',
+            'label' => 'التقييم المتبادل',
+            'url'   => $page_links['evaluation'],
+            'desc'  => 'تقييم زملاء الدفعة',
+            'color' => '#f39c12',
+            'bg'    => '#fff8e1',
+        ],
+        [
+            'icon'  => '📚',
+            'label' => 'المواد الدراسية',
+            'url'   => $page_links['materials'],
+            'desc'  => 'تحميل مواد الكورسات',
+            'color' => '#27ae60',
+            'bg'    => '#e8f5e9',
+        ],
+        [
+            'icon'  => '🏅',
+            'label' => 'درجاتي',
+            'url'   => $page_links['grades'],
+            'desc'  => 'نتائج الاختبارات والتقديرات',
+            'color' => '#16a085',
+            'bg'    => '#e0f2f1',
+        ],
+        [
+            'icon'  => '📅',
+            'label' => 'سجل الحضور',
+            'url'   => $page_links['attendance'],
+            'desc'  => 'سجل حضوري وغيابي',
+            'color' => '#2980b9',
+            'bg'    => '#e3f2fd',
+        ],
+    ];
+    foreach ( $nav_items as $item ) :
+        if ( ! $item['url'] ) continue;
+    ?>
+    <a href="<?php echo esc_url( $item['url'] ); ?>"
+       style="background:#fff; border:1px solid #e8ecef; border-radius:10px; padding:20px 16px; text-align:center; text-decoration:none; color:#2c3e50; transition:all .2s; display:block; box-shadow:0 2px 6px rgba(0,0,0,.04);"
+       onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 6px 18px rgba(0,0,0,.1)'; this.style.borderColor='<?php echo $item['color']; ?>';"
+       onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 6px rgba(0,0,0,.04)'; this.style.borderColor='#e8ecef';">
+        <div style="width:52px; height:52px; border-radius:12px; background:<?php echo esc_attr( $item['bg'] ); ?>; display:flex; align-items:center; justify-content:center; font-size:26px; margin:0 auto 12px;">
+            <?php echo $item['icon']; ?>
+        </div>
+        <div style="font-weight:700; font-size:13px; color:<?php echo esc_attr( $item['color'] ); ?>; margin-bottom:4px;">
+            <?php echo esc_html( $item['label'] ); ?>
+        </div>
+        <div style="font-size:11px; color:#888; line-height:1.4;">
+            <?php echo esc_html( $item['desc'] ); ?>
+        </div>
+    </a>
+    <?php endforeach; ?>
+    </div>
+
+    <!-- ══ FOOTER ════════════════════════════════════════════════════════════ -->
+    <div style="text-align:center; padding-top:16px; border-top:1px solid #eee; color:#aaa; font-size:12px;">
+        <?php echo esc_html( $institute_name ); ?> — بوابة الطلاب
     </div>
 </div>
 
@@ -138,7 +230,7 @@ jQuery(function($){
     $('.rsyi-ack-btn').on('click', function(){
         var btn = $(this);
         var id  = btn.data('warning-id');
-        if(!confirm('<?php echo esc_js( __( 'Do you confirm that you have read and understood this warning?', 'rsyi-sa' ) ); ?>')) return;
+        if(!confirm('هل تؤكد اطلاعك وموافقتك على هذا التحذير؟')) return;
         btn.prop('disabled', true);
         $.post(rsyiPortal.ajaxUrl, {
             action:     'rsyi_acknowledge_warning',

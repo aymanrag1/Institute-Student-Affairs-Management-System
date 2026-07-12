@@ -161,7 +161,7 @@ $pct = $total_required > 0 ? round( ( $approved_count / $total_required ) * 100 
 
             <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; align-items:center;">
                 <?php
-                $dl_url = admin_url( 'admin-ajax.php?action=rsyi_secure_download&doc_id=' . $doc->id . '&nonce=' . wp_create_nonce( 'rsyi_download_' . $doc->id ) );
+                $dl_url = \RSYI_SA\Secure_Download::get_url( (int) $doc->id );
                 ?>
                 <a href="<?php echo esc_url( $dl_url ); ?>" target="_blank" class="button button-small">
                     👁 <?php esc_html_e( 'View', 'rsyi-sa' ); ?>

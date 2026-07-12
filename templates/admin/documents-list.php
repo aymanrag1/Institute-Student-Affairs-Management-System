@@ -7,7 +7,7 @@ defined( 'ABSPATH' ) || exit;
 
 global $wpdb;
 
-$status_filter = sanitize_key( $_GET['status'] ?? 'pending' );
+$status_filter = sanitize_key( $_GET['status'] ?? 'all' );
 $search        = sanitize_text_field( wp_unslash( $_GET['s'] ?? '' ) );
 $page_num      = max( 1, (int) ( $_GET['paged'] ?? 1 ) );
 $per_page      = 30;

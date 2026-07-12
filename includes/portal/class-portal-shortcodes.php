@@ -32,6 +32,7 @@ class Shortcodes {
             'rsyi_portal_attendance_record'  => 'render_attendance_record',
             'rsyi_portal_exams'              => 'render_exams',
             'rsyi_portal_library'            => 'render_library',
+            'rsyi_portal_boss_man'           => 'render_boss_man',
         ];
         foreach ( $codes as $tag => $method ) {
             add_shortcode( $tag, [ __CLASS__, $method ] );
@@ -386,5 +387,30 @@ class Shortcodes {
         $books     = \RSYI_SA\Modules\Library::get_available_books();
         $my_issues = \RSYI_SA\Modules\Library::get_student_issues( $profile->id );
         return self::render_template( 'library', compact( 'books', 'my_issues' ) );
+    }
+
+    public static function render_boss_man( $atts ): string {
+        self::require_login();
+        global $wpdb;
+        $profile = \RSYI_SA\Modules\Accounts::get_profile_by_user_id( get_current_user_id() );
+        if ( ! $profile || ! $profile->is_boss_man ) {
+            return '<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:20px;text-align:center;direction:rtl;">
+                <strong>⛔ ليس لديك صلاحية الوصول لهذه الصفحة</strong><br>
+                <small>هذه الصفحة مخصصة لحكمدار الدفعة فقط</small>
+            </div>';
+        }
+
+        $cohort_id = (int) $profile->cohort_id;
+        $cohort    = \RSYI_SA\Modules\Cohorts::get_cohort( $cohort_id );
+        $students  = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, arabic_full_name, english_full_name FROM {$wpdb->prefix}rsyi_student_profiles
+             WHERE cohort_id = %d AND status = 'active' ORDER BY arabic_full_name ASC",
+            $cohort_id
+        ) );
+        $courses = $wpdb->get_results(
+            "SELECT id, name_ar, name_en FROM {$wpdb->prefix}rsyi_courses WHERE is_active = 1 ORDER BY name_ar ASC"
+        );
+
+        return self::render_template( 'boss-man', compact( 'profile', 'cohort', 'students', 'courses' ) );
     }
 }

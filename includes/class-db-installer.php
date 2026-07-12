@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.3.9';
+    const DB_VERSION        = '1.4.0';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -100,6 +100,9 @@ class DB_Installer {
             ],
             $p . 'rsyi_lib_purchase_request_items' => [
                 'unit_price' => 'DECIMAL(10,2) NOT NULL DEFAULT 0.00',
+            ],
+            $p . 'rsyi_student_profiles' => [
+                'is_boss_man' => 'TINYINT(1) NOT NULL DEFAULT 0',
             ],
         ];
 
@@ -772,6 +775,37 @@ class DB_Installer {
                 KEY idx_txn_wd_ord   (withdrawal_id),
                 KEY idx_txn_created  (created_at)
             ) $charset;",
+
+            // ── Courses ───────────────────────────────────────────────────
+            "CREATE TABLE {$p}rsyi_courses (
+                id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                name_ar     VARCHAR(255)    NOT NULL,
+                name_en     VARCHAR(255)    DEFAULT NULL,
+                description TEXT            DEFAULT NULL,
+                is_active   TINYINT(1)      NOT NULL DEFAULT 1,
+                created_by  BIGINT UNSIGNED NOT NULL,
+                created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_courses_active (is_active)
+            ) $charset;",
+
+            // ── Course Attendance (daily study tracking) ──────────────────
+            "CREATE TABLE {$p}rsyi_course_attendance (
+                id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                report_date DATE            NOT NULL,
+                student_id  BIGINT UNSIGNED NOT NULL,
+                course_id   BIGINT UNSIGNED DEFAULT NULL,
+                recorded_by BIGINT UNSIGNED NOT NULL,
+                notes       TEXT            DEFAULT NULL,
+                created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_daily_student (report_date, student_id),
+                KEY idx_ca_date    (report_date),
+                KEY idx_ca_student (student_id),
+                KEY idx_ca_course  (course_id)
+            ) $charset;",
         ];
     }
 
@@ -875,6 +909,12 @@ class DB_Installer {
                 'title'     => 'Library',
                 'shortcode' => '[rsyi_portal_library]',
                 'option'    => 'rsyi_page_library',
+            ],
+            [
+                'slug'      => 'boss-man-dashboard',
+                'title'     => 'لوحة تحكم الحكمدار',
+                'shortcode' => '[rsyi_portal_boss_man]',
+                'option'    => 'rsyi_page_boss_man',
             ],
         ];
 

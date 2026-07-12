@@ -52,6 +52,17 @@ class Menu {
         add_action( 'wp_ajax_rsyi_get_exam_for_student',    [ __CLASS__, 'ajax_get_exam_for_student' ] );
         // DB migration (admin-only manual trigger)
         add_action( 'wp_ajax_rsyi_run_db_migration',        [ __CLASS__, 'ajax_run_db_migration' ] );
+        // Courses management
+        add_action( 'wp_ajax_rsyi_save_course',             [ __CLASS__, 'ajax_save_course' ] );
+        add_action( 'wp_ajax_rsyi_delete_course',           [ __CLASS__, 'ajax_delete_course' ] );
+        add_action( 'wp_ajax_rsyi_toggle_course_status',    [ __CLASS__, 'ajax_toggle_course_status' ] );
+        // Boss Man
+        add_action( 'wp_ajax_rsyi_get_cohort_students_for_bm', [ __CLASS__, 'ajax_get_cohort_students_for_bm' ] );
+        add_action( 'wp_ajax_rsyi_toggle_boss_man',            [ __CLASS__, 'ajax_toggle_boss_man' ] );
+        add_action( 'wp_ajax_rsyi_save_boss_report',        [ __CLASS__, 'ajax_save_boss_report' ] );
+        add_action( 'wp_ajax_rsyi_get_boss_report',         [ __CLASS__, 'ajax_get_boss_report' ] );
+        add_action( 'wp_ajax_nopriv_rsyi_save_boss_report', [ __CLASS__, 'ajax_save_boss_report' ] );
+        add_action( 'wp_ajax_nopriv_rsyi_get_boss_report',  [ __CLASS__, 'ajax_get_boss_report' ] );
         // Chief Instructor signature on user profile
         add_action( 'show_user_profile',          [ __CLASS__, 'page_user_signature' ] );
         add_action( 'edit_user_profile',          [ __CLASS__, 'page_user_signature' ] );
@@ -87,8 +98,10 @@ class Menu {
             [ 'rsyi-cohorts',      __( 'Cohorts', 'rsyi-sa' ),             'rsyi_manage_cohorts',       [ __CLASS__, 'page_cohorts' ] ],
             [ 'rsyi-evaluations',  __( 'Evaluations', 'rsyi-sa' ),         'rsyi_view_evaluations',     [ __CLASS__, 'page_evaluations' ] ],
             [ 'rsyi-daily-report', __( 'Daily Report PDF', 'rsyi-sa' ),    'rsyi_print_daily_report',   [ __CLASS__, 'page_daily_report' ] ],
-            [ 'rsyi-library',      __( 'RYA Training', 'rsyi-sa' ), 'rsyi_lib_view_warehouse',   [ __CLASS__, 'page_library' ] ],
-            [ 'rsyi-audit',        __( 'Audit Log', 'rsyi-sa' ),           'rsyi_view_audit_log',       [ __CLASS__, 'page_audit_log' ] ],
+            [ 'rsyi-library',      __( 'RYA Training', 'rsyi-sa' ),          'rsyi_lib_view_warehouse',  [ __CLASS__, 'page_library' ] ],
+            [ 'rsyi-courses',      __( 'إدارة الكورسات', 'rsyi-sa' ),        'rsyi_manage_courses',      [ __CLASS__, 'page_courses' ] ],
+            [ 'rsyi-study-report', __( 'تقرير المتابعة الدراسي', 'rsyi-sa' ), 'rsyi_view_study_report',   [ __CLASS__, 'page_study_report' ] ],
+            [ 'rsyi-audit',        __( 'Audit Log', 'rsyi-sa' ),             'rsyi_view_audit_log',      [ __CLASS__, 'page_audit_log' ] ],
             [ 'rsyi-roles',        __( 'Roles & Permissions', 'rsyi-sa' ), 'rsyi_manage_roles',         [ __CLASS__, 'page_roles' ] ],
             [ 'rsyi-settings',     __( 'Settings', 'rsyi-sa' ),            'rsyi_manage_settings',      [ __CLASS__, 'page_settings' ] ],
         ];
@@ -215,6 +228,14 @@ class Menu {
         wp_enqueue_media();
         $file = RSYI_SA_PLUGIN_DIR . 'templates/admin/library.php';
         if ( file_exists( $file ) ) { include $file; }
+    }
+
+    public static function page_courses(): void {
+        self::render( 'courses' );
+    }
+
+    public static function page_study_report(): void {
+        self::render( 'study-report' );
     }
 
     // ── Template loader ───────────────────────────────────────────────────────
@@ -1808,5 +1829,168 @@ class Menu {
         if ( ! current_user_can( 'edit_user', $user_id ) ) { return; }
         $url = isset( $_POST['rsyi_chief_signature'] ) ? esc_url_raw( $_POST['rsyi_chief_signature'] ) : '';
         update_user_meta( $user_id, 'rsyi_chief_signature', $url );
+    }
+
+    // ── Courses AJAX ───────────────────────────────────────────────────────────
+
+    public static function ajax_save_course(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_courses' ) ) {
+            wp_send_json_error( [ 'message' => 'غير مصرح' ] );
+        }
+        global $wpdb;
+        $id      = absint( $_POST['id'] ?? 0 );
+        $name_ar = sanitize_text_field( wp_unslash( $_POST['name_ar'] ?? '' ) );
+        $name_en = sanitize_text_field( wp_unslash( $_POST['name_en'] ?? '' ) );
+        $desc    = sanitize_textarea_field( wp_unslash( $_POST['description'] ?? '' ) );
+        if ( empty( $name_ar ) ) {
+            wp_send_json_error( [ 'message' => 'اسم الكورس بالعربي مطلوب' ] );
+        }
+        $data = [
+            'name_ar'     => $name_ar,
+            'name_en'     => $name_en,
+            'description' => $desc,
+        ];
+        if ( $id ) {
+            $wpdb->update( $wpdb->prefix . 'rsyi_courses', $data, [ 'id' => $id ] );
+            wp_send_json_success( [ 'message' => 'تم تحديث الكورس', 'id' => $id ] );
+        } else {
+            $data['created_by'] = get_current_user_id();
+            $wpdb->insert( $wpdb->prefix . 'rsyi_courses', $data );
+            wp_send_json_success( [ 'message' => 'تم إضافة الكورس', 'id' => $wpdb->insert_id ] );
+        }
+    }
+
+    public static function ajax_delete_course(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_courses' ) ) {
+            wp_send_json_error( [ 'message' => 'غير مصرح' ] );
+        }
+        global $wpdb;
+        $id = absint( $_POST['id'] ?? 0 );
+        if ( ! $id ) { wp_send_json_error( [ 'message' => 'معرّف غير صالح' ] ); }
+        $wpdb->delete( $wpdb->prefix . 'rsyi_courses', [ 'id' => $id ] );
+        wp_send_json_success( [ 'message' => 'تم حذف الكورس' ] );
+    }
+
+    public static function ajax_toggle_course_status(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_courses' ) ) {
+            wp_send_json_error( [ 'message' => 'غير مصرح' ] );
+        }
+        global $wpdb;
+        $id = absint( $_POST['id'] ?? 0 );
+        if ( ! $id ) { wp_send_json_error( [ 'message' => 'معرّف غير صالح' ] ); }
+        $current = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT is_active FROM {$wpdb->prefix}rsyi_courses WHERE id = %d", $id
+        ) );
+        $wpdb->update( $wpdb->prefix . 'rsyi_courses', [ 'is_active' => $current ? 0 : 1 ], [ 'id' => $id ] );
+        wp_send_json_success( [ 'is_active' => ! $current ] );
+    }
+
+    // ── Boss Man AJAX ──────────────────────────────────────────────────────────
+
+    public static function ajax_get_cohort_students_for_bm(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_courses' ) && ! current_user_can( 'rsyi_view_study_report' ) ) {
+            wp_send_json_error();
+        }
+        global $wpdb;
+        $cohort_id = absint( $_GET['cohort_id'] ?? 0 );
+        $students  = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, arabic_full_name, english_full_name, is_boss_man
+             FROM {$wpdb->prefix}rsyi_student_profiles
+             WHERE cohort_id = %d AND status = 'active' ORDER BY arabic_full_name ASC",
+            $cohort_id
+        ) );
+        wp_send_json_success( [ 'students' => $students ] );
+    }
+
+    public static function ajax_toggle_boss_man(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_courses' ) && ! current_user_can( 'rsyi_view_study_report' ) ) {
+            wp_send_json_error( [ 'message' => 'غير مصرح' ] );
+        }
+        global $wpdb;
+        $student_id = absint( $_POST['student_id'] ?? 0 );
+        if ( ! $student_id ) { wp_send_json_error( [ 'message' => 'معرّف غير صالح' ] ); }
+        $current = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT is_boss_man FROM {$wpdb->prefix}rsyi_student_profiles WHERE id = %d", $student_id
+        ) );
+        $wpdb->update(
+            $wpdb->prefix . 'rsyi_student_profiles',
+            [ 'is_boss_man' => $current ? 0 : 1 ],
+            [ 'id' => $student_id ]
+        );
+        wp_send_json_success( [ 'is_boss_man' => ! $current ] );
+    }
+
+    public static function ajax_save_boss_report(): void {
+        // Supports both logged-in admin and portal students (boss man)
+        $nonce_key = is_user_logged_in() ? ( current_user_can( 'rsyi_manage_courses' ) ? 'rsyi_sa_admin' : 'rsyi_sa_portal' ) : '';
+        if ( $nonce_key ) {
+            check_ajax_referer( $nonce_key, '_nonce' );
+        }
+        if ( ! is_user_logged_in() ) { wp_send_json_error( [ 'message' => 'يجب تسجيل الدخول' ] ); }
+
+        global $wpdb;
+        $uid    = get_current_user_id();
+        $date   = sanitize_text_field( wp_unslash( $_POST['report_date'] ?? '' ) );
+        $rows   = $_POST['rows'] ?? [];
+
+        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+            wp_send_json_error( [ 'message' => 'تاريخ غير صالح' ] );
+        }
+
+        // Validate boss man or admin
+        $is_admin = current_user_can( 'rsyi_manage_courses' ) || current_user_can( 'rsyi_view_study_report' );
+        if ( ! $is_admin ) {
+            $profile = $wpdb->get_row( $wpdb->prepare(
+                "SELECT id, is_boss_man, cohort_id FROM {$wpdb->prefix}rsyi_student_profiles WHERE user_id = %d",
+                $uid
+            ) );
+            if ( ! $profile || ! $profile->is_boss_man ) {
+                wp_send_json_error( [ 'message' => 'غير مصرح — أنت لست حكمدار الدفعة' ] );
+            }
+        }
+
+        $saved = 0;
+        foreach ( (array) $rows as $row ) {
+            $student_id = absint( $row['student_id'] ?? 0 );
+            $course_id  = absint( $row['course_id'] ?? 0 ) ?: null;
+            $notes      = sanitize_textarea_field( $row['notes'] ?? '' );
+            if ( ! $student_id ) { continue; }
+            $wpdb->replace(
+                $wpdb->prefix . 'rsyi_course_attendance',
+                [
+                    'report_date' => $date,
+                    'student_id'  => $student_id,
+                    'course_id'   => $course_id,
+                    'recorded_by' => $uid,
+                    'notes'       => $notes,
+                ]
+            );
+            $saved++;
+        }
+        wp_send_json_success( [ 'message' => "تم حفظ {$saved} سجل بنجاح", 'saved' => $saved ] );
+    }
+
+    public static function ajax_get_boss_report(): void {
+        if ( ! is_user_logged_in() ) { wp_send_json_error( [ 'message' => 'يجب تسجيل الدخول' ] ); }
+        global $wpdb;
+        $date      = sanitize_text_field( wp_unslash( $_GET['report_date'] ?? $_POST['report_date'] ?? '' ) );
+        $cohort_id = absint( $_GET['cohort_id'] ?? $_POST['cohort_id'] ?? 0 );
+        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+            wp_send_json_error( [ 'message' => 'تاريخ غير صالح' ] );
+        }
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT ca.student_id, ca.course_id, ca.notes, sp.arabic_full_name, sp.english_full_name, c.name_ar AS course_name_ar, c.name_en AS course_name_en
+             FROM {$wpdb->prefix}rsyi_course_attendance ca
+             JOIN {$wpdb->prefix}rsyi_student_profiles sp ON sp.id = ca.student_id
+             LEFT JOIN {$wpdb->prefix}rsyi_courses c ON c.id = ca.course_id
+             WHERE ca.report_date = %s" . ( $cohort_id ? $wpdb->prepare( ' AND sp.cohort_id = %d', $cohort_id ) : '' ),
+            $date
+        ) );
+        wp_send_json_success( [ 'rows' => $rows ] );
     }
 }

@@ -77,6 +77,9 @@ class Roles {
             'rsyi_lib_manage_warehouse'      => true,
             'rsyi_lib_approve_withdrawal'    => true,
             'rsyi_lib_approve_purchase'      => true,
+            // Courses & Study Report
+            'rsyi_manage_courses'            => true,
+            'rsyi_view_study_report'         => true,
         ];
     }
 
@@ -187,6 +190,9 @@ class Roles {
                     // Warehouse
                     'rsyi_lib_view_warehouse'          => true,
                     'rsyi_lib_manage_warehouse'        => true,
+                    // Courses & Study Report
+                    'rsyi_manage_courses'              => true,
+                    'rsyi_view_study_report'           => true,
                 ],
             ],
 
@@ -205,6 +211,8 @@ class Roles {
                     'rsyi_reject_overnight_permit' => true,
                     'rsyi_create_violation'        => true,
                     'rsyi_assign_violation_points' => true,   // up to 10
+                    // Study Report
+                    'rsyi_view_study_report'       => true,
                 ],
             ],
 
