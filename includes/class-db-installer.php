@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.4.0';
+    const DB_VERSION        = '1.4.1';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -774,6 +774,21 @@ class DB_Installer {
                 KEY idx_txn_add_ord  (add_order_id),
                 KEY idx_txn_wd_ord   (withdrawal_id),
                 KEY idx_txn_created  (created_at)
+            ) $charset;",
+
+            // ── Boss Man Weekly Schedule ──────────────────────────────────
+            "CREATE TABLE {$p}rsyi_boss_man_schedule (
+                id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                cohort_id   BIGINT UNSIGNED NOT NULL,
+                student_id  BIGINT UNSIGNED NOT NULL,
+                week_start  DATE            NOT NULL,
+                assigned_by BIGINT UNSIGNED NOT NULL,
+                notes       VARCHAR(255)    DEFAULT NULL,
+                created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_cohort_week (cohort_id, week_start),
+                KEY idx_bms_student (student_id),
+                KEY idx_bms_week    (week_start)
             ) $charset;",
 
             // ── Courses ───────────────────────────────────────────────────

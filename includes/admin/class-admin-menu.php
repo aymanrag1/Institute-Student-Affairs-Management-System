@@ -58,11 +58,12 @@ class Menu {
         add_action( 'wp_ajax_rsyi_toggle_course_status',    [ __CLASS__, 'ajax_toggle_course_status' ] );
         // Boss Man
         add_action( 'wp_ajax_rsyi_get_cohort_students_for_bm', [ __CLASS__, 'ajax_get_cohort_students_for_bm' ] );
-        add_action( 'wp_ajax_rsyi_toggle_boss_man',            [ __CLASS__, 'ajax_toggle_boss_man' ] );
-        add_action( 'wp_ajax_rsyi_save_boss_report',        [ __CLASS__, 'ajax_save_boss_report' ] );
-        add_action( 'wp_ajax_rsyi_get_boss_report',         [ __CLASS__, 'ajax_get_boss_report' ] );
-        add_action( 'wp_ajax_nopriv_rsyi_save_boss_report', [ __CLASS__, 'ajax_save_boss_report' ] );
-        add_action( 'wp_ajax_nopriv_rsyi_get_boss_report',  [ __CLASS__, 'ajax_get_boss_report' ] );
+        add_action( 'wp_ajax_rsyi_save_boss_schedule',         [ __CLASS__, 'ajax_save_boss_schedule' ] );
+        add_action( 'wp_ajax_rsyi_get_boss_schedule',          [ __CLASS__, 'ajax_get_boss_schedule' ] );
+        add_action( 'wp_ajax_rsyi_save_boss_report',           [ __CLASS__, 'ajax_save_boss_report' ] );
+        add_action( 'wp_ajax_rsyi_get_boss_report',            [ __CLASS__, 'ajax_get_boss_report' ] );
+        add_action( 'wp_ajax_nopriv_rsyi_save_boss_report',    [ __CLASS__, 'ajax_save_boss_report' ] );
+        add_action( 'wp_ajax_nopriv_rsyi_get_boss_report',     [ __CLASS__, 'ajax_get_boss_report' ] );
         // Chief Instructor signature on user profile
         add_action( 'show_user_profile',          [ __CLASS__, 'page_user_signature' ] );
         add_action( 'edit_user_profile',          [ __CLASS__, 'page_user_signature' ] );
@@ -1890,6 +1891,72 @@ class Menu {
 
     // ── Boss Man AJAX ──────────────────────────────────────────────────────────
 
+    public static function ajax_save_boss_schedule(): void {
+        check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
+        if ( ! current_user_can( 'rsyi_manage_courses' ) && ! current_user_can( 'rsyi_view_study_report' ) ) {
+            wp_send_json_error( [ 'message' => 'Unauthorized / غير مصرح' ] );
+        }
+        global $wpdb;
+        $cohort_id  = absint( $_POST['cohort_id'] ?? 0 );
+        $student_id = absint( $_POST['student_id'] ?? 0 );
+        $week_start = sanitize_text_field( $_POST['week_start'] ?? '' );
+        $notes      = sanitize_text_field( $_POST['notes'] ?? '' );
+
+        if ( ! $cohort_id || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $week_start ) ) {
+            wp_send_json_error( [ 'message' => 'Invalid data / بيانات غير صالحة' ] );
+        }
+        if ( $student_id ) {
+            $wpdb->replace(
+                $wpdb->prefix . 'rsyi_boss_man_schedule',
+                [
+                    'cohort_id'   => $cohort_id,
+                    'student_id'  => $student_id,
+                    'week_start'  => $week_start,
+                    'assigned_by' => get_current_user_id(),
+                    'notes'       => $notes,
+                ]
+            );
+            $name = $wpdb->get_var( $wpdb->prepare(
+                "SELECT arabic_full_name FROM {$wpdb->prefix}rsyi_student_profiles WHERE id = %d", $student_id
+            ) );
+            wp_send_json_success( [ 'message' => 'تم التعيين / Assigned', 'name' => $name ] );
+        } else {
+            // Clear assignment for this week
+            $wpdb->delete(
+                $wpdb->prefix . 'rsyi_boss_man_schedule',
+                [ 'cohort_id' => $cohort_id, 'week_start' => $week_start ]
+            );
+            wp_send_json_success( [ 'message' => 'تم إلغاء التعيين / Cleared', 'name' => '' ] );
+        }
+    }
+
+    public static function ajax_get_boss_schedule(): void {
+        if ( ! current_user_can( 'rsyi_manage_courses' ) && ! current_user_can( 'rsyi_view_study_report' ) ) {
+            wp_send_json_error();
+        }
+        global $wpdb;
+        $cohort_id = absint( $_GET['cohort_id'] ?? 0 );
+        if ( ! $cohort_id ) { wp_send_json_error(); }
+
+        // Get schedule for current week + next 3 weeks + last 4 weeks
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT bms.week_start, bms.student_id, bms.notes,
+                    sp.arabic_full_name, sp.english_full_name
+             FROM {$wpdb->prefix}rsyi_boss_man_schedule bms
+             LEFT JOIN {$wpdb->prefix}rsyi_student_profiles sp ON sp.id = bms.student_id
+             WHERE bms.cohort_id = %d
+             ORDER BY bms.week_start DESC
+             LIMIT 10",
+            $cohort_id
+        ) );
+        $students = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, arabic_full_name, english_full_name FROM {$wpdb->prefix}rsyi_student_profiles
+             WHERE cohort_id = %d AND status = 'active' ORDER BY arabic_full_name ASC",
+            $cohort_id
+        ) );
+        wp_send_json_success( [ 'schedule' => $rows, 'students' => $students ] );
+    }
+
     public static function ajax_get_cohort_students_for_bm(): void {
         check_ajax_referer( 'rsyi_sa_admin', '_nonce' );
         if ( ! current_user_can( 'rsyi_manage_courses' ) && ! current_user_can( 'rsyi_view_study_report' ) ) {
@@ -1946,11 +2013,21 @@ class Menu {
         $is_admin = current_user_can( 'rsyi_manage_courses' ) || current_user_can( 'rsyi_view_study_report' );
         if ( ! $is_admin ) {
             $profile = $wpdb->get_row( $wpdb->prepare(
-                "SELECT id, is_boss_man, cohort_id FROM {$wpdb->prefix}rsyi_student_profiles WHERE user_id = %d",
-                $uid
+                "SELECT id, cohort_id FROM {$wpdb->prefix}rsyi_student_profiles WHERE user_id = %d", $uid
             ) );
-            if ( ! $profile || ! $profile->is_boss_man ) {
-                wp_send_json_error( [ 'message' => 'غير مصرح — أنت لست حكمدار الدفعة' ] );
+            if ( ! $profile ) {
+                wp_send_json_error( [ 'message' => 'Student profile not found / الملف الشخصي غير موجود' ] );
+            }
+            // Check if this student is the current week's boss man for their cohort
+            $today      = current_time( 'Y-m-d' );
+            $week_start = date( 'Y-m-d', strtotime( 'monday this week', strtotime( $today ) ) );
+            $assigned   = $wpdb->get_var( $wpdb->prepare(
+                "SELECT student_id FROM {$wpdb->prefix}rsyi_boss_man_schedule
+                 WHERE cohort_id = %d AND week_start = %s",
+                $profile->cohort_id, $week_start
+            ) );
+            if ( (int) $assigned !== (int) $profile->id ) {
+                wp_send_json_error( [ 'message' => 'Unauthorized — you are not this week\'s boss man / غير مصرح — لست حكمدار هذا الأسبوع' ] );
             }
         }
 

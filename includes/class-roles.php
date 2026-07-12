@@ -80,6 +80,8 @@ class Roles {
             // Courses & Study Report
             'rsyi_manage_courses'            => true,
             'rsyi_view_study_report'         => true,
+            // Boss Man
+            'rsyi_boss_man_access'           => true,
         ];
     }
 
@@ -305,6 +307,8 @@ class Roles {
                     'rsyi_view_own_attendance'       => true,
                     'rsyi_take_exam'                 => true,
                     'rsyi_view_library'              => true,
+                    // Boss Man (eligibility — actual access controlled by weekly schedule)
+                    'rsyi_boss_man_access'           => true,
                 ],
             ],
         ];

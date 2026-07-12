@@ -70,11 +70,22 @@ class Shortcodes {
             return '<p>' . esc_html__( 'لم يتم العثور على ملفك الشخصي. يرجى التواصل مع الإدارة.', 'rsyi-sa' ) . '</p>';
         }
 
-        $total_pts   = \RSYI_SA\Modules\Behavior::get_total_points( (int) $profile->id );
-        $warnings    = \RSYI_SA\Modules\Behavior::get_pending_warnings_for_student( (int) $profile->id );
-        $cohort      = \RSYI_SA\Modules\Cohorts::get_cohort( (int) $profile->cohort_id );
+        $total_pts = \RSYI_SA\Modules\Behavior::get_total_points( (int) $profile->id );
+        $warnings  = \RSYI_SA\Modules\Behavior::get_pending_warnings_for_student( (int) $profile->id );
+        $cohort    = \RSYI_SA\Modules\Cohorts::get_cohort( (int) $profile->cohort_id );
 
-        return self::render_template( 'dashboard', compact( 'profile', 'total_pts', 'warnings', 'cohort' ) );
+        // Check if student is current week's boss man
+        global $wpdb;
+        $today      = current_time( 'Y-m-d' );
+        $week_start = date( 'Y-m-d', strtotime( 'monday this week', strtotime( $today ) ) );
+        $bm_id      = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT student_id FROM {$wpdb->prefix}rsyi_boss_man_schedule
+             WHERE cohort_id = %d AND week_start = %s",
+            (int) $profile->cohort_id, $week_start
+        ) );
+        $is_boss_man = ( $bm_id === (int) $profile->id );
+
+        return self::render_template( 'dashboard', compact( 'profile', 'total_pts', 'warnings', 'cohort', 'is_boss_man' ) );
     }
 
     public static function render_documents( $atts ): string {
@@ -393,16 +404,40 @@ class Shortcodes {
         self::require_login();
         global $wpdb;
         $profile = \RSYI_SA\Modules\Accounts::get_profile_by_user_id( get_current_user_id() );
-        if ( ! $profile || ! $profile->is_boss_man ) {
+        if ( ! $profile ) {
             return '<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:20px;text-align:center;direction:rtl;">
-                <strong>⛔ ليس لديك صلاحية الوصول لهذه الصفحة</strong><br>
-                <small>هذه الصفحة مخصصة لحكمدار الدفعة فقط</small>
+                <strong>⛔ Profile not found / الملف الشخصي غير موجود</strong>
             </div>';
         }
 
-        $cohort_id = (int) $profile->cohort_id;
-        $cohort    = \RSYI_SA\Modules\Cohorts::get_cohort( $cohort_id );
-        $students  = $wpdb->get_results( $wpdb->prepare(
+        // Check if this student is the current week's boss man
+        $today      = current_time( 'Y-m-d' );
+        $week_start = date( 'Y-m-d', strtotime( 'monday this week', strtotime( $today ) ) );
+        $cohort_id  = (int) $profile->cohort_id;
+
+        $assigned_id = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT student_id FROM {$wpdb->prefix}rsyi_boss_man_schedule
+             WHERE cohort_id = %d AND week_start = %s",
+            $cohort_id, $week_start
+        ) );
+
+        if ( $assigned_id !== (int) $profile->id ) {
+            // Show who is the current boss man
+            $current_bm = $assigned_id ? $wpdb->get_var( $wpdb->prepare(
+                "SELECT arabic_full_name FROM {$wpdb->prefix}rsyi_student_profiles WHERE id = %d", $assigned_id
+            ) ) : null;
+            return '<div style="background:#fff3cd;border:1px solid #ffc107;border-right:5px solid #e67e22;border-radius:8px;padding:24px;text-align:center;direction:rtl; max-width:500px; margin:40px auto;">
+                <div style="font-size:48px; margin-bottom:12px;">⛔</div>
+                <strong style="font-size:16px;">أنت لست حكمدار هذا الأسبوع</strong><br>
+                <p style="color:#666; margin-top:8px;">' .
+                ( $current_bm ? 'حكمدار هذا الأسبوع هو: <strong>' . esc_html( $current_bm ) . '</strong>' : 'لم يتم تعيين حكمدار لهذا الأسبوع بعد.' ) .
+                '</p>
+                <p style="font-size:12px;color:#888;">You are not the boss man for this week / This page is for the weekly appointed boss man only</p>
+            </div>';
+        }
+
+        $cohort   = \RSYI_SA\Modules\Cohorts::get_cohort( $cohort_id );
+        $students = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, arabic_full_name, english_full_name FROM {$wpdb->prefix}rsyi_student_profiles
              WHERE cohort_id = %d AND status = 'active' ORDER BY arabic_full_name ASC",
             $cohort_id
@@ -411,6 +446,6 @@ class Shortcodes {
             "SELECT id, name_ar, name_en FROM {$wpdb->prefix}rsyi_courses WHERE is_active = 1 ORDER BY name_ar ASC"
         );
 
-        return self::render_template( 'boss-man', compact( 'profile', 'cohort', 'students', 'courses' ) );
+        return self::render_template( 'boss-man', compact( 'profile', 'cohort', 'students', 'courses', 'week_start' ) );
     }
 }

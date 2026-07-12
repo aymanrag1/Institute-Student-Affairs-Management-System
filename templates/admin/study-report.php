@@ -51,19 +51,19 @@ foreach ( $report_rows as $r ) {
 }
 arsort( $summary );
 ?>
-<h1 style="margin-bottom:4px;">📊 تقرير المتابعة الدراسي</h1>
+<h1 style="margin-bottom:4px;">📊 تقرير المتابعة الدراسي / Daily Study Follow-up Report</h1>
 
 <form method="get" style="background:#fff; border:1px solid #ccd0d4; border-radius:8px; padding:16px 20px; margin:16px 0; display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap;">
     <input type="hidden" name="page" value="rsyi-study-report">
     <div>
-        <label style="display:block; font-weight:700; margin-bottom:4px; font-size:12px; color:#555;">📅 التاريخ</label>
+        <label style="display:block; font-weight:700; margin-bottom:4px; font-size:12px; color:#555;">📅 التاريخ / Date</label>
         <input type="date" name="report_date" value="<?php echo esc_attr( $filter_date ); ?>"
                style="border:1px solid #ccd0d4; border-radius:4px; padding:6px 10px;">
     </div>
     <div>
-        <label style="display:block; font-weight:700; margin-bottom:4px; font-size:12px; color:#555;">👥 الدفعة</label>
+        <label style="display:block; font-weight:700; margin-bottom:4px; font-size:12px; color:#555;">👥 الدفعة / Cohort</label>
         <select name="cohort_id" style="border:1px solid #ccd0d4; border-radius:4px; padding:6px 10px; min-width:160px;">
-            <option value="">— جميع الدفعات —</option>
+            <option value="">— جميع الدفعات / All Cohorts —</option>
             <?php foreach ( $cohorts as $c ) : ?>
             <option value="<?php echo (int) $c->id; ?>" <?php selected( $filter_cohort, $c->id ); ?>>
                 <?php echo esc_html( $c->name ); ?>
@@ -71,10 +71,10 @@ arsort( $summary );
             <?php endforeach; ?>
         </select>
     </div>
-    <button type="submit" class="button button-primary">🔍 عرض التقرير</button>
+    <button type="submit" class="button button-primary">🔍 عرض التقرير / View Report</button>
     <a href="<?php echo esc_url( admin_url( 'admin.php?page=rsyi-study-report&report_date=' . urlencode( $filter_date ) . ( $filter_cohort ? '&cohort_id=' . $filter_cohort : '' ) . '&export=1' ) ); ?>"
        class="button" style="background:#27ae60; color:#fff; border-color:#27ae60;">
-        ⬇ تصدير CSV
+        ⬇ تصدير CSV / Export CSV
     </a>
 </form>
 
@@ -105,10 +105,10 @@ if ( ! empty( $_GET['export'] ) && current_user_can( 'rsyi_view_study_report' ) 
 <?php if ( empty( $report_rows ) ) : ?>
 <div style="background:#f8f9fa; border:1px solid #dee2e6; border-radius:8px; padding:40px; text-align:center; color:#666; margin-top:16px;">
     <div style="font-size:48px; margin-bottom:12px;">📭</div>
-    <h3 style="margin:0 0 8px;">لا توجد بيانات لهذا اليوم</h3>
-    <p style="margin:0;">لم يتم تسجيل أي تقرير في <strong><?php echo esc_html( $filter_date ); ?></strong>
-    <?php echo $filter_cohort ? ' لهذه الدفعة' : ''; ?></p>
-    <p style="margin-top:12px; font-size:13px; color:#888;">يقوم الحكمدار بتسجيل التقرير من <a href="<?php echo esc_url( get_option( 'rsyi_page_boss_man' ) ? get_permalink( get_option( 'rsyi_page_boss_man' ) ) : '#' ); ?>">لوحة تحكم الحكمدار</a></p>
+    <h3 style="margin:0 0 8px;">لا توجد بيانات لهذا اليوم / No Data for This Date</h3>
+    <p style="margin:0;">لم يتم تسجيل أي تقرير في / No report recorded for <strong><?php echo esc_html( $filter_date ); ?></strong>
+    <?php echo $filter_cohort ? ' لهذه الدفعة / for this cohort' : ''; ?></p>
+    <p style="margin-top:12px; font-size:13px; color:#888;">يقوم الحكمدار بتسجيل التقرير من / Boss Man submits the report via <a href="<?php echo esc_url( get_option( 'rsyi_page_boss_man' ) ? get_permalink( get_option( 'rsyi_page_boss_man' ) ) : '#' ); ?>">لوحة تحكم الحكمدار / Boss Man Dashboard</a></p>
 </div>
 <?php else : ?>
 
@@ -116,7 +116,7 @@ if ( ! empty( $_GET['export'] ) && current_user_can( 'rsyi_view_study_report' ) 
 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:14px; margin-bottom:24px;">
     <div style="background:#fff; border:1px solid #dee2e6; border-radius:8px; padding:16px; text-align:center; border-top:3px solid #0073aa;">
         <div style="font-size:28px; font-weight:700; color:#0073aa;"><?php echo count( $report_rows ); ?></div>
-        <div style="font-size:12px; color:#888; text-transform:uppercase;">إجمالي الطلاب</div>
+        <div style="font-size:12px; color:#888; text-transform:uppercase;">إجمالي الطلاب / Total Students</div>
     </div>
     <?php foreach ( $summary as $s ) : ?>
     <div style="background:#fff; border:1px solid #dee2e6; border-radius:8px; padding:16px; text-align:center; border-top:3px solid #27ae60;">
@@ -128,7 +128,7 @@ if ( ! empty( $_GET['export'] ) && current_user_can( 'rsyi_view_study_report' ) 
 
 <!-- Distribution Chart (text-based) -->
 <div style="background:#fff; border:1px solid #dee2e6; border-radius:8px; padding:20px; margin-bottom:24px;">
-    <h3 style="margin:0 0 16px; font-size:14px; color:#333;">📊 توزيع الطلاب على الكورسات</h3>
+    <h3 style="margin:0 0 16px; font-size:14px; color:#333;">📊 توزيع الطلاب على الكورسات / Student Distribution by Course</h3>
     <?php
     $total = count( $report_rows );
     foreach ( $summary as $s ) :
@@ -151,11 +151,11 @@ if ( ! empty( $_GET['export'] ) && current_user_can( 'rsyi_view_study_report' ) 
     <thead>
         <tr>
             <th style="width:40px;">#</th>
-            <th>الطالب</th>
-            <th>الدفعة</th>
-            <th>الكورس</th>
-            <th>ملاحظات</th>
-            <th>تم التسجيل بواسطة</th>
+            <th>الطالب / Student</th>
+            <th>الدفعة / Cohort</th>
+            <th>الكورس / Course</th>
+            <th>ملاحظات / Notes</th>
+            <th>سجّل بواسطة / Recorded By</th>
         </tr>
     </thead>
     <tbody>

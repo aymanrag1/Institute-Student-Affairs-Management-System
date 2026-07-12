@@ -50,6 +50,8 @@ $cap_groups = [
     'تقارير وسجلات' => [ 'rsyi_print_daily_report', 'rsyi_view_audit_log' ],
     'النظام'       => [ 'rsyi_manage_settings', 'rsyi_manage_roles' ],
     'مخزن RYA'    => [ 'rsyi_lib_view_warehouse', 'rsyi_lib_manage_warehouse', 'rsyi_lib_approve_withdrawal', 'rsyi_lib_approve_purchase', 'rsyi_manage_library', 'rsyi_view_library' ],
+    'كورسات ومتابعة دراسية' => [ 'rsyi_manage_courses', 'rsyi_view_study_report' ],
+    'حكمدار الدفعة' => [ 'rsyi_boss_man_access' ],
 ];
 
 // Label map for display
@@ -93,12 +95,17 @@ $cap_labels = [
     'rsyi_view_audit_log'           => 'عرض سجل التدقيق',
     'rsyi_manage_settings'          => 'إدارة إعدادات النظام',
     'rsyi_manage_roles'             => 'إدارة الأدوار والصلاحيات',
-    'rsyi_lib_view_warehouse'       => 'عرض المخزن',
-    'rsyi_lib_manage_warehouse'     => 'إدارة المخزن (إضافة/تعديل أصناف)',
-    'rsyi_lib_approve_withdrawal'   => 'اعتماد أذون الصرف',
-    'rsyi_lib_approve_purchase'     => 'اعتماد طلبات الشراء',
-    'rsyi_manage_library'           => 'إدارة مخزن الكتب',
-    'rsyi_view_library'             => 'عرض مخزن الكتب',
+    'rsyi_lib_view_warehouse'       => 'عرض المخزن / View Warehouse',
+    'rsyi_lib_manage_warehouse'     => 'إدارة المخزن / Manage Warehouse',
+    'rsyi_lib_approve_withdrawal'   => 'اعتماد أذون الصرف / Approve Withdrawals',
+    'rsyi_lib_approve_purchase'     => 'اعتماد طلبات الشراء / Approve Purchases',
+    'rsyi_manage_library'           => 'إدارة مخزن الكتب / Manage Library',
+    'rsyi_view_library'             => 'عرض مخزن الكتب / View Library',
+    // Courses & Study Report
+    'rsyi_manage_courses'           => 'إدارة الكورسات / Manage Courses',
+    'rsyi_view_study_report'        => 'عرض تقرير المتابعة الدراسي / View Study Report',
+    // Boss Man
+    'rsyi_boss_man_access'          => 'وصول لوحة حكمدار الدفعة / Boss Man Portal Access',
 ];
 
 // Active role being edited
