@@ -164,10 +164,10 @@ $courses_json = wp_json_encode( array_map( fn( $c ) => [
 
 <script>
 jQuery(function($){
-    var ajaxUrl  = rsyiPortal.ajaxUrl;
-    var nonce    = rsyiPortal.nonce;
-    var cohortId = <?php echo (int) ($cohort->id ?? 0); ?>;
-    var coursesData = <?php echo $courses_json; ?>;
+    var ajaxUrl  = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
+    var nonce    = '<?php echo esc_js( wp_create_nonce( 'rsyi_sa_portal' ) ); ?>';
+    var cohortId = <?php echo (int) ( isset( $cohort->id ) ? $cohort->id : 0 ); ?>;
+    var coursesData = <?php echo $courses_json ?: '[]'; ?>;
 
     // Build a course <select> HTML (re-usable)
     function buildCourseSelect(selectedId) {
@@ -196,13 +196,15 @@ jQuery(function($){
     }
 
     // Add course button
-    $(document).on('click', '.bm-add-course-btn', function(){
-        var $container = $(this).prev('.bm-courses-container');
+    $(document).on('click', '.bm-add-course-btn', function(e){
+        e.preventDefault();
+        var $container = $(this).closest('td').find('.bm-courses-container');
         addCourseRow($container, 0, '');
     });
 
     // Remove course row
-    $(document).on('click', '.bm-remove-btn', function(){
+    $(document).on('click', '.bm-remove-btn', function(e){
+        e.preventDefault();
         var $container = $(this).closest('.bm-courses-container');
         $(this).closest('.bm-course-row').remove();
         updateRemoveBtns($container);
@@ -265,7 +267,8 @@ jQuery(function($){
     }
     loadReport($('#bm-report-date').val());
 
-    $('#bm-load-btn').on('click', function(){
+    $('#bm-load-btn').on('click', function(e){
+        e.preventDefault();
         loadReport($('#bm-report-date').val());
     });
 
@@ -307,7 +310,8 @@ jQuery(function($){
     });
 
     // Clear all
-    $('#bm-clear-btn').on('click', function(){
+    $('#bm-clear-btn').on('click', function(e){
+        e.preventDefault();
         if (!confirm('هل تريد مسح جميع الاختيارات؟ / Clear all selections?')) return;
         $('.bm-student-row').each(function(){
             var $container = $(this).find('.bm-courses-container');
@@ -319,7 +323,8 @@ jQuery(function($){
     });
 
     // History tab — group by student
-    $('#hist-load-btn').on('click', function(){
+    $('#hist-load-btn').on('click', function(e){
+        e.preventDefault();
         var date = $('#hist-date').val();
         if (!date) return;
         var $c = $('#hist-content').html('<p style="color:#888;">جاري التحميل… / Loading…</p>');
