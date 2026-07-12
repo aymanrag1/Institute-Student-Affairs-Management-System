@@ -87,6 +87,32 @@ class Shortcodes {
         ) );
         $is_boss_man = ( $bm_id === (int) $profile->id );
 
+        // Add warning-ack JS via wp_footer so it runs after jQuery is loaded,
+        // bypassing any content-filter that might strip <script> tags in shortcode output.
+        if ( ! empty( $warnings ) ) {
+            $ajax_url = esc_js( admin_url( 'admin-ajax.php' ) );
+            $nonce    = esc_js( wp_create_nonce( 'rsyi_sa_portal' ) );
+            $dash_js  = <<<JS
+(function(\$){
+    if(window.rsyiDashWarnBound){return;} window.rsyiDashWarnBound=true;
+    \$(document).on('click','.rsyi-ack-btn',function(){
+        var \$btn=\$(this),id=\$btn.data('warning-id');
+        if(!window.confirm('هل تؤكد اطلاعك وموافقتك على هذا التحذير؟')){return;}
+        \$btn.prop('disabled',true).text('جاري الإرسال…');
+        \$.post('{$ajax_url}',{action:'rsyi_acknowledge_warning',_nonce:'{$nonce}',warning_id:id},function(res){
+            if(res&&res.success){
+                \$btn.closest('.rsyi-warn-item').html('<p style="color:#27ae60;font-weight:700;padding:8px 0;">✅ '+res.data.message+'</p>');
+            }else{
+                \$btn.prop('disabled',false).text('✍ موافق — لقد اطلعت');
+                alert(res&&res.data&&res.data.message?res.data.message:'حدث خطأ');
+            }
+        }).fail(function(){\$btn.prop('disabled',false).text('✍ موافق — لقد اطلعت');alert('فشل الاتصال');});
+    });
+}(jQuery));
+JS;
+            wp_add_inline_script( 'rsyi-sa-portal', $dash_js, 'after' );
+        }
+
         return self::render_template( 'dashboard', compact( 'profile', 'total_pts', 'warnings', 'cohort', 'is_boss_man' ) );
     }
 
@@ -449,6 +475,31 @@ class Shortcodes {
         $courses = $wpdb->get_results(
             "SELECT id, name_ar, name_en FROM {$wpdb->prefix}rsyi_courses WHERE is_active = 1 ORDER BY name_ar ASC"
         );
+
+        // ── Enqueue boss-man-portal.js in wp_footer with jQuery dependency ────────
+        // This bypasses any content-filter script-stripping and guarantees jQuery
+        // is available when the handlers run. Calling wp_enqueue_script from within
+        // a shortcode is safe for footer scripts — they haven't been output yet.
+        wp_enqueue_script(
+            'rsyi-boss-man-portal',
+            RSYI_SA_PLUGIN_URL . 'assets/js/boss-man-portal.js',
+            [ 'jquery' ],
+            RSYI_SA_VERSION,
+            true  // in footer
+        );
+
+        // Pass PHP data to JS (works for footer scripts even when called after wp_head)
+        wp_localize_script( 'rsyi-boss-man-portal', 'rsyiBMConfig', [
+            'ajaxUrl'     => admin_url( 'admin-ajax.php' ),
+            'nonce'       => wp_create_nonce( 'rsyi_sa_portal' ),
+            'cohortId'    => (int) ( $cohort->id ?? 0 ),
+            'coursesData' => array_map( fn( $c ) => [
+                'id'      => (int) $c->id,
+                'name_ar' => $c->name_ar,
+                'name_en' => $c->name_en ?: '',
+            ], $courses ),
+            'today'       => current_time( 'Y-m-d' ),
+        ] );
 
         return self::render_template( 'boss-man', compact( 'profile', 'cohort', 'students', 'courses', 'week_start' ) );
     }

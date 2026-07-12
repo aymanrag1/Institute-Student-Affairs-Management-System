@@ -217,37 +217,4 @@ $ajax_nonce = wp_create_nonce( 'rsyi_sa_portal' );
 
 </div><!-- /rsyi-dash -->
 
-<script>
-/* Dashboard: warning acknowledgement — no rsyiPortal dependency */
-(function waitForJQ() {
-    if (typeof jQuery === 'undefined') { setTimeout(waitForJQ, 50); return; }
-    jQuery(function ($) {
-        $(document).on('click', '.rsyi-ack-btn', function () {
-            var $btn     = $(this);
-            var id       = $btn.data('warning-id');
-            var ajaxUrl  = $btn.data('ajax-url');
-            var nonce    = $btn.data('nonce');
-            if (!window.confirm('هل تؤكد اطلاعك وموافقتك على هذا التحذير؟')) return;
-            $btn.prop('disabled', true).text('جاري الإرسال…');
-            $.post(ajaxUrl, {
-                action     : 'rsyi_acknowledge_warning',
-                _nonce     : nonce,
-                warning_id : id
-            }, function (res) {
-                if (res && res.success) {
-                    $btn.closest('.rsyi-warn-item').html(
-                        '<p style="color:#27ae60;font-weight:700;padding:8px 0;">✅ ' + res.data.message + '</p>'
-                    );
-                } else {
-                    $btn.prop('disabled', false).text('✍ موافق — لقد اطلعت');
-                    var msg = (res && res.data && res.data.message) ? res.data.message : 'حدث خطأ';
-                    alert(msg);
-                }
-            }).fail(function () {
-                $btn.prop('disabled', false).text('✍ موافق — لقد اطلعت');
-                alert('فشل الاتصال. يرجى المحاولة مرة أخرى.');
-            });
-        });
-    });
-})();
-</script>
+<?php /* Warning-ack JavaScript is added via wp_add_inline_script in render_dashboard() */ ?>
