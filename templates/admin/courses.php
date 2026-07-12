@@ -14,21 +14,22 @@ $cohorts = $wpdb->get_results(
     "SELECT id, name FROM {$wpdb->prefix}rsyi_cohorts WHERE is_active = 1 ORDER BY name ASC"
 );
 
-// Build 4 upcoming weeks (Mon–Sun) starting from this Monday
-$today      = current_time( 'Y-m-d' );
-$this_mon   = date( 'Y-m-d', strtotime( 'monday this week', strtotime( $today ) ) );
-$weeks = [];
+// Build weeks (Sun–Sat) starting from this week's Sunday
+$today    = current_time( 'Y-m-d' );
+$ts_today = strtotime( $today );
+$this_sun = date( 'Y-m-d', $ts_today - (int) date( 'w', $ts_today ) * DAY_IN_SECONDS );
+$weeks    = [];
 for ( $i = 0; $i < 5; $i++ ) {
-    $mon = date( 'Y-m-d', strtotime( "+{$i} week", strtotime( $this_mon ) ) );
-    $sun = date( 'Y-m-d', strtotime( '+6 days', strtotime( $mon ) ) );
-    $weeks[] = [ 'start' => $mon, 'end' => $sun, 'is_current' => ( $i === 0 ) ];
+    $sun = date( 'Y-m-d', strtotime( "+{$i} week", strtotime( $this_sun ) ) );
+    $sat = date( 'Y-m-d', strtotime( '+6 days', strtotime( $sun ) ) );
+    $weeks[] = [ 'start' => $sun, 'end' => $sat, 'is_current' => ( $i === 0 ) ];
 }
 // Also include 2 past weeks for reference
 $past_weeks = [];
 for ( $i = 1; $i <= 2; $i++ ) {
-    $mon = date( 'Y-m-d', strtotime( "-{$i} week", strtotime( $this_mon ) ) );
-    $sun = date( 'Y-m-d', strtotime( '+6 days', strtotime( $mon ) ) );
-    $past_weeks[] = [ 'start' => $mon, 'end' => $sun ];
+    $sun = date( 'Y-m-d', strtotime( "-{$i} week", strtotime( $this_sun ) ) );
+    $sat = date( 'Y-m-d', strtotime( '+6 days', strtotime( $sun ) ) );
+    $past_weeks[] = [ 'start' => $sun, 'end' => $sat ];
 }
 ?>
 <div id="rsyi-course-notice" style="display:none; margin:12px 0;" class="notice"></div>

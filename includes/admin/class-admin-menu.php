@@ -2019,8 +2019,10 @@ class Menu {
                 wp_send_json_error( [ 'message' => 'Student profile not found / الملف الشخصي غير موجود' ] );
             }
             // Check if this student is the current week's boss man for their cohort
+            // Week runs Sunday–Saturday; find this week's Sunday
             $today      = current_time( 'Y-m-d' );
-            $week_start = date( 'Y-m-d', strtotime( 'monday this week', strtotime( $today ) ) );
+            $ts         = strtotime( $today );
+            $week_start = date( 'Y-m-d', $ts - (int) date( 'w', $ts ) * DAY_IN_SECONDS );
             $assigned   = $wpdb->get_var( $wpdb->prepare(
                 "SELECT student_id FROM {$wpdb->prefix}rsyi_boss_man_schedule
                  WHERE cohort_id = %d AND week_start = %s",

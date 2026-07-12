@@ -75,9 +75,11 @@ class Shortcodes {
         $cohort    = \RSYI_SA\Modules\Cohorts::get_cohort( (int) $profile->cohort_id );
 
         // Check if student is current week's boss man
+        // Week runs Sunday–Saturday; find this week's Sunday
         global $wpdb;
         $today      = current_time( 'Y-m-d' );
-        $week_start = date( 'Y-m-d', strtotime( 'monday this week', strtotime( $today ) ) );
+        $ts         = strtotime( $today );
+        $week_start = date( 'Y-m-d', $ts - (int) date( 'w', $ts ) * DAY_IN_SECONDS );
         $bm_id      = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT student_id FROM {$wpdb->prefix}rsyi_boss_man_schedule
              WHERE cohort_id = %d AND week_start = %s",
@@ -411,8 +413,10 @@ class Shortcodes {
         }
 
         // Check if this student is the current week's boss man
+        // Week runs Sunday–Saturday; find this week's Sunday
         $today      = current_time( 'Y-m-d' );
-        $week_start = date( 'Y-m-d', strtotime( 'monday this week', strtotime( $today ) ) );
+        $ts         = strtotime( $today );
+        $week_start = date( 'Y-m-d', $ts - (int) date( 'w', $ts ) * DAY_IN_SECONDS );
         $cohort_id  = (int) $profile->cohort_id;
 
         $assigned_id = (int) $wpdb->get_var( $wpdb->prepare(

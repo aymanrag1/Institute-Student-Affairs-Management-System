@@ -1,7 +1,7 @@
 <?php
 /**
  * Portal – Student Dashboard
- * Variables: $profile, $total_pts, $warnings (array), $cohort
+ * Variables: $profile, $total_pts, $warnings (array), $cohort, $is_boss_man
  * @package RSYI_StudentAffairs
  */
 defined( 'ABSPATH' ) || exit;
@@ -34,7 +34,8 @@ $status_color = [ 'pending_docs' => '#f39c12', 'active' => '#27ae60', 'suspended
 $sc = $status_color[ $profile->status ] ?? '#999';
 $pts_color = $total_pts >= 30 ? '#e74c3c' : ( $total_pts >= 20 ? '#e67e22' : '#27ae60' );
 
-$is_boss_man = ! empty( $profile->is_boss_man );
+// $is_boss_man is passed from render_dashboard() based on the weekly schedule table
+$is_boss_man    = ! empty( $is_boss_man );
 $institute_name = get_option( 'rsyi_institute_name', 'معهد البحر الأحمر' );
 ?>
 <div class="rsyi-portal" dir="rtl" style="font-family:'Segoe UI', Tahoma, sans-serif; max-width:900px; margin:0 auto; color:#2c3e50;">
