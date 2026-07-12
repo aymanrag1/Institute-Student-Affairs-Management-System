@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class DB_Installer {
 
     const DB_VERSION_OPTION = 'rsyi_sa_db_version';
-    const DB_VERSION        = '1.4.1';
+    const DB_VERSION        = '1.4.2';
 
     /**
      * Full activation sequence: tables + roles + upload dir + rewrite flush.
@@ -118,6 +118,17 @@ class DB_Installer {
                     $wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN `{$col}` {$definition}" );
                 }
             }
+        }
+
+        // Drop UNIQUE KEY on course_attendance to allow multiple courses per student per day
+        $ca_table = $p . 'rsyi_course_attendance';
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $has_uq = $wpdb->get_var( "SELECT COUNT(*) FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$ca_table}'
+            AND INDEX_NAME = 'uq_daily_student'" );
+        if ( $has_uq ) {
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query( "ALTER TABLE `{$ca_table}` DROP INDEX `uq_daily_student`" );
         }
     }
 

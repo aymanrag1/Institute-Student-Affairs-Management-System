@@ -102,6 +102,7 @@ class Menu {
             [ 'rsyi-library',      __( 'RYA Training', 'rsyi-sa' ),          'rsyi_lib_view_warehouse',  [ __CLASS__, 'page_library' ] ],
             [ 'rsyi-courses',      __( 'إدارة الكورسات', 'rsyi-sa' ),        'rsyi_manage_courses',      [ __CLASS__, 'page_courses' ] ],
             [ 'rsyi-study-report', __( 'تقرير المتابعة الدراسي', 'rsyi-sa' ), 'rsyi_view_study_report',   [ __CLASS__, 'page_study_report' ] ],
+            [ 'rsyi-study-stats',  __( 'إحصائيات الكورسات', 'rsyi-sa' ),     'rsyi_view_study_report',   [ __CLASS__, 'page_study_stats' ] ],
             [ 'rsyi-audit',        __( 'Audit Log', 'rsyi-sa' ),             'rsyi_view_audit_log',      [ __CLASS__, 'page_audit_log' ] ],
             [ 'rsyi-roles',        __( 'Roles & Permissions', 'rsyi-sa' ), 'rsyi_manage_roles',         [ __CLASS__, 'page_roles' ] ],
             [ 'rsyi-settings',     __( 'Settings', 'rsyi-sa' ),            'rsyi_manage_settings',      [ __CLASS__, 'page_settings' ] ],
@@ -237,6 +238,10 @@ class Menu {
 
     public static function page_study_report(): void {
         self::render( 'study-report' );
+    }
+
+    public static function page_study_stats(): void {
+        self::render( 'study-stats' );
     }
 
     // ── Template loader ───────────────────────────────────────────────────────
@@ -2033,13 +2038,29 @@ class Menu {
             }
         }
 
+        // Collect unique student IDs to clear before re-inserting
+        $student_ids = array_unique( array_filter( array_map(
+            fn( $r ) => absint( $r['student_id'] ?? 0 ),
+            (array) $rows
+        ) ) );
+
+        // Delete all existing records for these students on this date
+        foreach ( $student_ids as $sid ) {
+            $wpdb->delete(
+                $wpdb->prefix . 'rsyi_course_attendance',
+                [ 'report_date' => $date, 'student_id' => $sid ],
+                [ '%s', '%d' ]
+            );
+        }
+
+        // Insert fresh rows (skip entries with no course selected)
         $saved = 0;
         foreach ( (array) $rows as $row ) {
             $student_id = absint( $row['student_id'] ?? 0 );
             $course_id  = absint( $row['course_id'] ?? 0 ) ?: null;
             $notes      = sanitize_textarea_field( $row['notes'] ?? '' );
-            if ( ! $student_id ) { continue; }
-            $wpdb->replace(
+            if ( ! $student_id || ! $course_id ) { continue; }
+            $wpdb->insert(
                 $wpdb->prefix . 'rsyi_course_attendance',
                 [
                     'report_date' => $date,
@@ -2051,7 +2072,7 @@ class Menu {
             );
             $saved++;
         }
-        wp_send_json_success( [ 'message' => "تم حفظ {$saved} سجل بنجاح", 'saved' => $saved ] );
+        wp_send_json_success( [ 'message' => "تم حفظ {$saved} سجل بنجاح / {$saved} records saved", 'saved' => $saved ] );
     }
 
     public static function ajax_get_boss_report(): void {
