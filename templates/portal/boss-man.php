@@ -48,11 +48,11 @@ $courses_json = wp_json_encode( array_map( fn( $c ) => [
 
     <!-- Tabs -->
     <div style="display:flex; gap:0; margin-bottom:24px; border-bottom:2px solid #dee2e6;">
-        <button class="rsyi-bm-tab active" data-tab="daily"
+        <button type="button" class="rsyi-bm-tab active" data-tab="daily"
                 style="padding:10px 24px; border:none; background:none; cursor:pointer; font-size:14px; font-weight:700; color:#e67e22; border-bottom:3px solid #e67e22; margin-bottom:-2px;">
             📋 تقرير اليوم / Today's Report
         </button>
-        <button class="rsyi-bm-tab" data-tab="history"
+        <button type="button" class="rsyi-bm-tab" data-tab="history"
                 style="padding:10px 24px; border:none; background:none; cursor:pointer; font-size:14px; color:#666;">
             📅 السجل التاريخي / History
         </button>
@@ -67,7 +67,7 @@ $courses_json = wp_json_encode( array_map( fn( $c ) => [
                 <input type="date" id="bm-report-date" value="<?php echo esc_attr( $today ); ?>"
                        max="<?php echo esc_attr( $today ); ?>"
                        style="border:1px solid #ccd0d4; border-radius:6px; padding:7px 12px; font-size:14px;">
-                <button id="bm-load-btn" class="button" style="background:#0073aa; color:#fff; border-color:#0073aa; padding:7px 16px;">
+                <button type="button" id="bm-load-btn" class="button" style="background:#0073aa; color:#fff; border-color:#0073aa; padding:7px 16px;">
                     تحميل البيانات / Load Data
                 </button>
             </div>
@@ -118,10 +118,10 @@ $courses_json = wp_json_encode( array_map( fn( $c ) => [
                                 </select>
                                 <input type="text" class="bm-notes-input"
                                        placeholder="ملاحظة / Note…">
-                                <button class="bm-remove-btn" title="حذف / Remove" style="display:none;">✕</button>
+                                <button type="button" class="bm-remove-btn" title="حذف / Remove" style="display:none;">✕</button>
                             </div>
                         </div>
-                        <button class="bm-add-course-btn">+ إضافة كورس / Add Course</button>
+                        <button type="button" class="bm-add-course-btn">+ إضافة كورس / Add Course</button>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -129,11 +129,11 @@ $courses_json = wp_json_encode( array_map( fn( $c ) => [
             </table>
 
             <div style="margin-top:20px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-                <button id="bm-save-btn" class="button button-primary"
+                <button type="button" id="bm-save-btn" class="button button-primary"
                         style="background:#e67e22; border-color:#d35400; color:#fff; padding:10px 28px; font-size:15px; font-weight:700;">
                     💾 حفظ التقرير / Save Report
                 </button>
-                <button id="bm-clear-btn" class="button" style="padding:10px 18px;">
+                <button type="button" id="bm-clear-btn" class="button" style="padding:10px 18px;">
                     🗑 مسح الكل / Clear All
                 </button>
                 <span id="bm-save-status" style="font-size:13px; color:#27ae60; display:none;"></span>
@@ -151,7 +151,7 @@ $courses_json = wp_json_encode( array_map( fn( $c ) => [
                     <input type="date" id="hist-date" value="<?php echo esc_attr( $today ); ?>"
                            style="border:1px solid #ccd0d4; border-radius:6px; padding:7px 12px;">
                 </div>
-                <button id="hist-load-btn" class="button" style="background:#0073aa; color:#fff; border-color:#0073aa; padding:7px 16px;">
+                <button type="button" id="hist-load-btn" class="button" style="background:#0073aa; color:#fff; border-color:#0073aa; padding:7px 16px;">
                     🔍 عرض / View
                 </button>
             </div>
@@ -184,7 +184,7 @@ jQuery(function($){
         var $row = $('<div class="bm-course-row"></div>');
         $row.append(buildCourseSelect(courseId || 0));
         $row.append('<input type="text" class="bm-notes-input" placeholder="ملاحظة / Note…" value="' + ($('<div>').text(notes || '').html()) + '">');
-        $row.append('<button class="bm-remove-btn" title="حذف / Remove">✕</button>');
+        $row.append('<button type="button" class="bm-remove-btn" title="حذف / Remove">✕</button>');
         $container.append($row);
         // Show remove buttons when more than one row
         updateRemoveBtns($container);
